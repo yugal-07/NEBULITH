@@ -1,0 +1,44 @@
+# Copy to data/source-manifest.yaml and fill only after verifying the actual product.
+# This is a schema/template, not a claim that the resource has already been downloaded.
+manifest_version: 1
+study_id: "replace-with-study-id"
+created_at: null
+sources:
+  - source_id: "earth-dem-source"
+    provider: "NASA LP DAAC or another verified provider"
+    product_short_name: null
+    product_version: null
+    landing_page: null
+    access_endpoint: null
+    doi_or_concept_id: null
+    license_and_attribution: null
+    spatial_resolution_m: null
+    crs: null
+    units: null
+    observation_start: null
+    observation_end: null
+    retrieved_at: null
+    checksum_sha256: null
+    local_asset: null
+    processing_recipe: null
+    evidence_type: "observed"
+    status: "pending_verification"
+  - source_id: "planetary-terrain-source"
+    provider: "NASA PDS / ODE / verified planetary service"
+    product_short_name: null
+    product_version: null
+    landing_page: null
+    access_endpoint: null
+    doi_or_concept_id: null
+    license_and_attribution: null
+    spatial_resolution_m: null
+    crs: null
+    units: null
+    observation_start: null
+    observation_end: null
+    retrieved_at: null
+    checksum_sha256: null
+    local_asset: null
+    processing_recipe: null
+    evidence_type: "observed"
+    status: "pending_verification"

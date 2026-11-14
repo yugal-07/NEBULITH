@@ -1,0 +1,39 @@
+{
+  "study_id": "demo-study-template",
+  "title": "Mars rover geology and mobility analog study",
+  "demo_fixture": true,
+  "warning": "Template only. Replace target, candidates, measurements and source references with verified data before a scientific demonstration.",
+  "target": {
+    "body": "mars",
+    "region_id": null,
+    "name": null,
+    "geometry": null,
+    "source_refs": []
+  },
+  "mission_profile": {
+    "id": "rover-mobility-geological-sampling",
+    "name": "Rover mobility + geological sampling",
+    "weights": {
+      "terrain_slope": null,
+      "surface_roughness": null,
+      "geological_context": null,
+      "thermal_context": null,
+      "illumination": null
+    },
+    "weight_status": "must_be_configured_and_documented"
+  },
+  "earth_candidates": [],
+  "scoring": {
+    "algorithm_version": null,
+    "normalization_method": null,
+    "missing_data_policy": "exclude_missing_dimensions_and_report_coverage",
+    "score": null,
+    "status": "not_computed"
+  },
+  "transferability": [],
+  "route_rehearsal": {
+    "status": "not_computed",
+    "not_a_safety_certification": true
+  },
+  "source_manifest": "source-manifest.yaml"
+}

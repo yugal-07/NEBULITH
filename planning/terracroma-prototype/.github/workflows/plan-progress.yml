@@ -1,0 +1,26 @@
+name: Plan progress integrity
+on:
+  push:
+    paths:
+      - 'plan/**'
+      - 'scripts/update_progress.py'
+      - 'tests/**'
+      - '.github/workflows/plan-progress.yml'
+  pull_request:
+    paths:
+      - 'plan/**'
+      - 'scripts/update_progress.py'
+      - 'tests/**'
+      - '.github/workflows/plan-progress.yml'
+jobs:
+  progress-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test progress calculations
+        run: python -m unittest discover -s tests -v
+      - name: Verify generated progress artifacts
+        run: python scripts/update_progress.py --check

@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+python scripts/update_progress.py
+python -m unittest discover -s tests -v
+git add plan progress

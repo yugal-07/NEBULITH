@@ -1,0 +1,6 @@
+backend/data/*.sqlite3
+backend/data/*.sqlite3-shm
+backend/data/*.sqlite3-wal
+backend/.venv/
+backend/**/__pycache__/
+backend/**/*.py[cod]
