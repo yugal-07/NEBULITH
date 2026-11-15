@@ -7,13 +7,7 @@ import type { Planet } from '../../types'
 
 export type Basemap = 'satellite' | 'street' | 'terrain'
 
-export type LocationMetrics = {
-  elevationMeters: number | null
-  slopeDegrees: number | null
-  terrainClass: string | null
-  status: 'loading' | 'available' | 'partial' | 'not_available' | 'not_supported' | 'error'
-  source?: string
-}
+export type BodyTilesState = 'idle' | 'loading' | 'ready' | 'error'
 
 type Props = {
   planet: Planet
@@ -21,8 +15,8 @@ type Props = {
   basemap: Basemap
   grid: boolean
   onLocationSelect: (location: ExplorerLocation) => void
-  onMetricsChange: (metrics: LocationMetrics) => void
-  onBodyTilesLoading: (loading: boolean) => void
+  onBodyTilesState: (body: Planet, state: BodyTilesState) => void
+  bodyRetryToken: number
   mapControlRef: MutableRefObject<MapLibreMap | null>
 }
 
@@ -62,58 +56,35 @@ function gridFeatures() {
   return { type: 'FeatureCollection' as const, features }
 }
 
-function markerElement() {
-  const el = document.createElement('div')
-  el.className = 'map-location-marker'
-  el.setAttribute('role', 'img')
-  el.setAttribute('aria-label', 'Selected map location')
-  return el
-}
-
-export function PlanetaryGlobe({ planet, location, basemap, grid, onLocationSelect, onMetricsChange, onBodyTilesLoading, mapControlRef }: Props) {
+export function PlanetaryGlobe({ planet, location, basemap, grid, onLocationSelect, onBodyTilesState, bodyRetryToken, mapControlRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
-  const markerRef = useRef<maplibregl.Marker | null>(null)
+  const mapLoadedRef = useRef(false)
+  const gridRef = useRef(grid)
   const currentPlanetRef = useRef(planet)
   const currentLocationRef = useRef(location)
   const lastMapSelectionRef = useRef<string | null>(null)
   const pendingBodyLocationRef = useRef<string | null>(null)
   const previousPlanetRef = useRef<Planet>(planet)
   const transitionCleanupRef = useRef<(() => void) | null>(null)
+  const loadedSourceIdsRef = useRef(new Set<string>())
   const basemapRef = useRef(basemap)
-  const metricsCallbackRef = useRef(onMetricsChange)
-  const bodyLoadingCallbackRef = useRef(onBodyTilesLoading)
+  const bodyStateCallbackRef = useRef(onBodyTilesState)
   const selectCallbackRef = useRef(onLocationSelect)
 
   currentPlanetRef.current = planet
   currentLocationRef.current = location
   basemapRef.current = basemap
-  metricsCallbackRef.current = onMetricsChange
-  bodyLoadingCallbackRef.current = onBodyTilesLoading
+  gridRef.current = grid
+  bodyStateCallbackRef.current = onBodyTilesState
   selectCallbackRef.current = onLocationSelect
 
   function locationKey(next: ExplorerLocation) {
     return `${next.body}:${next.latitude.toFixed(6)}:${next.longitude.toFixed(6)}`
   }
 
-  async function loadEarthMetrics(lon: number, lat: number) {
-    metricsCallbackRef.current({ elevationMeters: null, slopeDegrees: null, terrainClass: null, status: 'loading', source: 'Terrarium elevation tiles' })
-    try {
-      const query = new URLSearchParams({ lon: String(lon), lat: String(lat) })
-      const response = await fetch(`/api/v1/terrain/sample?${query}`)
-      if (!response.ok) throw new Error(`Terrain sample failed: ${response.status}`)
-      const result = await response.json() as { elevation_m: number | null; slope_degrees: number | null; terrain_class: string | null; coverage_status: string; source: string }
-      metricsCallbackRef.current({
-        elevationMeters: result.elevation_m,
-        slopeDegrees: result.slope_degrees,
-        terrainClass: result.terrain_class,
-        status: result.coverage_status === 'available' ? 'available' : result.coverage_status === 'partial' ? 'partial' : 'not_available',
-        source: result.source,
-      })
-    } catch {
-      metricsCallbackRef.current({ elevationMeters: null, slopeDegrees: null, terrainClass: null, status: 'error', source: 'Terrarium elevation tiles' })
-    }
-  }
+  const transitionSequenceRef = useRef(0)
+  const retryTokenRef = useRef(bodyRetryToken)
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -155,11 +126,13 @@ export function PlanetaryGlobe({ planet, location, basemap, grid, onLocationSele
     })
     mapRef.current = map
     mapControlRef.current = map
+    const rememberLoadedSource = (event: maplibregl.MapSourceDataEvent) => {
+      if (event.sourceDataType === 'content') loadedSourceIdsRef.current.add(event.sourceId)
+    }
+    map.on('sourcedata', rememberLoadedSource)
     map.on('load', () => {
+      mapLoadedRef.current = true
       map.setProjection({ type: 'globe' })
-      markerRef.current = new maplibregl.Marker({ element: markerElement(), anchor: 'center' })
-        .setLngLat([currentLocationRef.current.longitude, currentLocationRef.current.latitude])
-        .addTo(map)
       map.on('click', (event) => {
         const selectedPlanet = currentPlanetRef.current
         const nearest = selectedPlanet === 'Earth' ? null : nearestPlanetaryFeature(selectedPlanet, event.lngLat.lat, event.lngLat.lng)
@@ -180,41 +153,45 @@ export function PlanetaryGlobe({ planet, location, basemap, grid, onLocationSele
               description: nearest?.description ?? 'No curated surface feature is nearby.',
               terrain: nearest?.terrain ?? 'Unclassified',
             }
-        markerRef.current?.setLngLat([next.longitude, next.latitude]).addTo(map)
         lastMapSelectionRef.current = `${next.body}:${next.latitude.toFixed(6)}:${next.longitude.toFixed(6)}`
         selectCallbackRef.current(next)
-        if (next.body === 'Earth') void loadEarthMetrics(next.longitude, next.latitude)
-        else metricsCallbackRef.current({ elevationMeters: null, slopeDegrees: null, terrainClass: null, status: 'not_supported', source: 'Elevation data is not connected for this body yet' })
       })
       const initial = currentLocationRef.current
-      if (currentPlanetRef.current === 'Earth') void loadEarthMetrics(initial.longitude, initial.latitude)
-        previousPlanetRef.current = currentPlanetRef.current
-        if (currentPlanetRef.current === 'Earth') {
-          applyMapLayers(map, 'Earth', basemapRef.current)
-        } else {
-          pendingBodyLocationRef.current = locationKey(initial)
-          markerRef.current.remove()
-          map.setMaxZoom(BODIES[currentPlanetRef.current].tileMaxZoom + 1)
+      previousPlanetRef.current = currentPlanetRef.current
+      if (currentPlanetRef.current === 'Earth') {
+        applyMapLayers(map, 'Earth', basemapRef.current)
+        disposeInactivePlanetarySurfaces(map, 'Earth', loadedSourceIdsRef.current)
+        bodyStateCallbackRef.current('Earth', 'ready')
+      } else {
+        pendingBodyLocationRef.current = locationKey(initial)
+        map.setMaxZoom(BODIES[currentPlanetRef.current].tileMaxZoom + 1)
         map.setTerrain(null)
         map.setLayoutProperty('earth-hillshade-layer', 'visibility', 'none')
-          map.setSky({ 'sky-color': BODIES[currentPlanetRef.current].fogColor, 'horizon-color': BODIES[currentPlanetRef.current].highColor, 'sky-horizon-blend': 0.18, 'atmosphere-blend': 0.22 })
-          map.flyTo({ center: BODIES[currentPlanetRef.current].center, zoom: 1.25, duration: 900, essential: true })
-          beginBodyLayerTransition(map, [`${currentPlanetRef.current.toLowerCase()}-surface`], () => applyMapLayers(map, currentPlanetRef.current, basemapRef.current), bodyLoadingCallbackRef.current, cleanup => { transitionCleanupRef.current = cleanup })
-          metricsCallbackRef.current({ elevationMeters: null, slopeDegrees: null, terrainClass: null, status: 'not_supported', source: 'Elevation data is not connected for this body yet' })
-        }
-      map.setLayoutProperty('coordinate-grid', 'visibility', grid ? 'visible' : 'none')
+        const bodyAtLoad = currentPlanetRef.current
+        ensurePlanetarySurface(map, bodyAtLoad)
+        map.setSky({ 'sky-color': BODIES[bodyAtLoad].fogColor, 'horizon-color': BODIES[bodyAtLoad].highColor, 'sky-horizon-blend': 0.18, 'atmosphere-blend': 0.22 })
+        map.flyTo({ center: BODIES[bodyAtLoad].center, zoom: 1.25, bearing: 0, pitch: 0, duration: 900, essential: true })
+        const transitionId = ++transitionSequenceRef.current
+        beginBodyLayerTransition(map, [`${bodyAtLoad.toLowerCase()}-surface`], transitionId, transitionSequenceRef, loadedSourceIdsRef.current, () => {
+          applyMapLayers(map, bodyAtLoad, basemapRef.current)
+          disposeInactivePlanetarySurfaces(map, bodyAtLoad, loadedSourceIdsRef.current)
+        }, state => bodyStateCallbackRef.current(bodyAtLoad, state), cleanup => { transitionCleanupRef.current = cleanup })
+      }
+      map.setLayoutProperty('coordinate-grid', 'visibility', gridRef.current ? 'visible' : 'none')
     })
     map.on('error', (event) => {
       if (event.error?.message) console.warn('MapLibre tile/style error:', event.error.message)
     })
 
     return () => {
-      markerRef.current?.remove()
-      markerRef.current = null
+      // Invalidate pending tile waits before detaching listeners and disposing the shared map.
+      ++transitionSequenceRef.current
       transitionCleanupRef.current?.()
       transitionCleanupRef.current = null
+      map.off('sourcedata', rememberLoadedSource)
       map.remove()
       mapRef.current = null
+      mapLoadedRef.current = false
       mapControlRef.current = null
     }
   // Initial map creation intentionally reads the first location from refs; prop updates are applied below.
@@ -244,10 +221,13 @@ export function PlanetaryGlobe({ planet, location, basemap, grid, onLocationSele
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map?.isStyleLoaded()) return
+    if (!map || !mapLoadedRef.current) return
     const bodyChanged = previousPlanetRef.current !== planet
+    const shouldRetry = retryTokenRef.current !== bodyRetryToken
+    retryTokenRef.current = bodyRetryToken
     previousPlanetRef.current = planet
-    if (bodyChanged) {
+    if (bodyChanged || shouldRetry) {
+      ++transitionSequenceRef.current
       transitionCleanupRef.current?.()
       transitionCleanupRef.current = null
       lastMapSelectionRef.current = null
@@ -259,42 +239,46 @@ export function PlanetaryGlobe({ planet, location, basemap, grid, onLocationSele
         pendingBodyLocationRef.current = locationKey(currentLocationRef.current)
         map.setMaxZoom(18)
         map.setSky({ 'sky-color': 'transparent', 'horizon-color': 'transparent', 'fog-color': 'transparent', 'fog-ground-blend': 1, 'atmosphere-blend': 0 })
-        markerRef.current?.setLngLat([currentLocationRef.current.longitude, currentLocationRef.current.latitude]).addTo(map)
-        map.flyTo({ center: [currentLocationRef.current.longitude, currentLocationRef.current.latitude], zoom: 6, duration: 1100, essential: true })
-        void loadEarthMetrics(currentLocationRef.current.longitude, currentLocationRef.current.latitude)
       } else {
         pendingBodyLocationRef.current = locationKey(currentLocationRef.current)
-        markerRef.current?.remove()
         map.setMaxZoom(BODIES[planet].tileMaxZoom + 1)
         map.setTerrain(null)
         map.setLayoutProperty('earth-hillshade-layer', 'visibility', 'none')
+        ensurePlanetarySurface(map, planet)
         map.setSky({ 'sky-color': BODIES[planet].fogColor, 'horizon-color': BODIES[planet].highColor, 'sky-horizon-blend': 0.18, 'atmosphere-blend': 0.22 })
-        map.flyTo({ center: BODIES[planet].center, zoom: 1.25, duration: 900, essential: true })
-        metricsCallbackRef.current({ elevationMeters: null, slopeDegrees: null, terrainClass: null, status: 'not_supported', source: 'Elevation data is not connected for this body yet' })
       }
+      const defaultCenter = planet === 'Earth' ? [14, 20] as [number, number] : BODIES[planet].center
+      map.flyTo({ center: defaultCenter, zoom: 1.25, bearing: 0, pitch: 0, duration: 900, essential: true })
 
-      beginBodyLayerTransition(map, target, () => applyMapLayers(map, planet, basemap), bodyLoadingCallbackRef.current, cleanup => { transitionCleanupRef.current = cleanup })
+      if (shouldRetry && planet !== 'Earth') {
+        const source = map.getSource(`${planet.toLowerCase()}-surface`) as maplibregl.RasterTileSource | undefined
+        source?.setTiles([`${BODIES[planet].tileTemplate}?retry=${bodyRetryToken}`])
+      }
+      bodyStateCallbackRef.current(planet, 'idle')
+      const transitionId = transitionSequenceRef.current
+      beginBodyLayerTransition(map, target, transitionId, transitionSequenceRef, loadedSourceIdsRef.current, () => {
+        applyMapLayers(map, planet, basemap)
+        disposeInactivePlanetarySurfaces(map, planet, loadedSourceIdsRef.current)
+      }, state => bodyStateCallbackRef.current(planet, state), cleanup => { transitionCleanupRef.current = cleanup })
       return
     }
     if (planet === 'Earth') applyMapLayers(map, planet, basemap)
-  }, [planet, basemap])
+  }, [planet, basemap, bodyRetryToken])
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map?.isStyleLoaded()) return
+    if (!map || !mapLoadedRef.current) return
     map.setLayoutProperty('coordinate-grid', 'visibility', grid ? 'visible' : 'none')
   }, [grid])
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map?.isStyleLoaded()) return
+    if (!map || !mapLoadedRef.current) return
     const key = locationKey(location)
     const bodySwitchLocation = pendingBodyLocationRef.current === key
-    if (planet === 'Earth' || !bodySwitchLocation) markerRef.current?.setLngLat([location.longitude, location.latitude]).addTo(map)
     if (bodySwitchLocation) {
       pendingBodyLocationRef.current = null
-      if (location.researchEvidence) {
-        markerRef.current?.setLngLat([location.longitude, location.latitude]).addTo(map)
+      if (location.name !== 'Surface view') {
         map.flyTo({ center: [location.longitude, location.latitude], zoom: 6, duration: 1100, essential: true })
       }
       return
@@ -304,16 +288,16 @@ export function PlanetaryGlobe({ planet, location, basemap, grid, onLocationSele
       return
     }
     map.flyTo({ center: [location.longitude, location.latitude], zoom: 6, duration: 1100, essential: true })
-    if (planet === 'Earth') void loadEarthMetrics(location.longitude, location.latitude)
-    else onMetricsChange({ elevationMeters: null, slopeDegrees: null, terrainClass: null, status: 'not_supported', source: 'Elevation data is not connected for this body yet' })
-  }, [location, onMetricsChange, planet])
+  }, [location, planet])
 
   return <div ref={containerRef} className="maplibre-globe" aria-label={`${planet} interactive MapLibre globe`} role="application" />
 }
 
 function applyMapLayers(map: MapLibreMap, planet: Planet, basemap: Basemap) {
   const ids = ['earth-satellite-layer', 'earth-street-layer', 'earth-topographic-layer', 'moon-surface-layer', 'mars-surface-layer']
-  for (const id of ids) map.setLayoutProperty(id, 'visibility', 'none')
+  for (const id of ids) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none')
+  }
   if (planet === 'Earth') {
     const layer = basemap === 'street' ? 'earth-street-layer' : basemap === 'terrain' ? 'earth-topographic-layer' : 'earth-satellite-layer'
     map.setLayoutProperty(layer, 'visibility', 'visible')
@@ -326,18 +310,48 @@ function applyMapLayers(map: MapLibreMap, planet: Planet, basemap: Basemap) {
   }
 }
 
+function ensurePlanetarySurface(map: MapLibreMap, body: 'Moon' | 'Mars') {
+  const sourceId = `${body.toLowerCase()}-surface`
+  const layerId = `${sourceId}-layer`
+  if (!map.getSource(sourceId)) map.addSource(sourceId, planetaryRasterSource(body))
+  if (!map.getLayer(layerId)) {
+    map.addLayer({
+      id: layerId,
+      type: 'raster',
+      source: sourceId,
+      layout: { visibility: 'none' },
+      paint: { 'raster-fade-duration': 0, 'raster-resampling': 'linear' },
+    }, map.getLayer('coordinate-grid') ? 'coordinate-grid' : undefined)
+  }
+}
+
+function disposeInactivePlanetarySurfaces(map: MapLibreMap, activeBody: Planet, loadedSourceIds: Set<string>) {
+  for (const body of ['Moon', 'Mars'] as const) {
+    if (activeBody === body) continue
+    const sourceId = `${body.toLowerCase()}-surface`
+    const layerId = `${sourceId}-layer`
+    if (map.getLayer(layerId)) map.removeLayer(layerId)
+    if (map.getSource(sourceId)) map.removeSource(sourceId)
+    loadedSourceIds.delete(sourceId)
+  }
+}
+
 function beginBodyLayerTransition(
   map: MapLibreMap,
   sourceIds: string[],
+  transitionId: number,
+  currentTransitionId: MutableRefObject<number>,
+  loadedSourceIds: Set<string>,
   activateTarget: () => void,
-  onLoadingChange: (loading: boolean) => void,
+  onStateChange: (state: BodyTilesState) => void,
   registerCleanup: (cleanup: () => void) => void,
 ) {
   const sourceSet = new Set(sourceIds)
   const targetLayerIds = sourceIds.map((sourceId) => sourceId === 'terrarium-dem' ? 'earth-hillshade-layer' : `${sourceId}-layer`)
   let cameraSettled = !map.isMoving()
-  let sawTileContent = false
+  let sawIdle = false
   let settled = false
+  let disposed = false
 
   for (const id of targetLayerIds) map.setLayoutProperty(id, 'visibility', 'visible')
 
@@ -349,34 +363,42 @@ function beginBodyLayerTransition(
     window.clearTimeout(timeoutTimer)
   }
 
-  const finish = (success: boolean) => {
+  const finish = (state: 'ready' | 'error') => {
     if (settled) return
     settled = true
     cleanupListeners()
-    if (success) activateTarget()
-    else for (const id of targetLayerIds) map.setLayoutProperty(id, 'visibility', 'none')
-    onLoadingChange(false)
+    if (disposed || transitionId !== currentTransitionId.current) return
+    // Only the latest body transition may commit layers or loading state; stale tile events are ignored.
+    activateTarget()
+    onStateChange(state)
     registerCleanup(() => undefined)
   }
 
   const checkReady = () => {
-    if (cameraSettled && sawTileContent && sourceIds.every((sourceId) => map.isSourceLoaded(sourceId))) finish(true)
+    if (disposed || transitionId !== currentTransitionId.current) return
+    if (cameraSettled && sawIdle && sourceIds.every((sourceId) => loadedSourceIds.has(sourceId) && map.isSourceLoaded(sourceId))) finish('ready')
   }
   const onSourceData = (event: maplibregl.MapSourceDataEvent) => {
-    if (event.sourceId && sourceSet.has(event.sourceId) && event.sourceDataType === 'content') sawTileContent = true
+    if (event.sourceId && sourceSet.has(event.sourceId) && event.sourceDataType === 'content') loadedSourceIds.add(event.sourceId)
     checkReady()
   }
   const onMoveEnd = () => {
     cameraSettled = true
     checkReady()
   }
-  const onIdle = () => checkReady()
-  const loadingTimer = window.setTimeout(() => { if (!settled) onLoadingChange(true) }, 300)
-  const timeoutTimer = window.setTimeout(() => finish(false), 20000)
+  const onIdle = () => {
+    sawIdle = true
+    checkReady()
+  }
+  const loadingTimer = window.setTimeout(() => { if (!settled && !disposed && transitionId === currentTransitionId.current) onStateChange('loading') }, 300)
+  const timeoutTimer = window.setTimeout(() => finish('error'), 20000)
 
   map.on('sourcedata', onSourceData)
   map.on('moveend', onMoveEnd)
   map.on('idle', onIdle)
-  registerCleanup(() => finish(false))
+  registerCleanup(() => {
+    disposed = true
+    cleanupListeners()
+  })
   checkReady()
 }

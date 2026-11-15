@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { CircleUserRound, Mic, Search, Sun, X } from 'lucide-react'
 import type { ExplorerLocation } from '../../data/locations'
@@ -58,6 +58,8 @@ export function AppShell({ planet, onPlanetChange, onLocationSelect, locationOpt
   const [searchError, setSearchError] = useState('')
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResult[]>([])
   const [commandResult, setCommandResult] = useState('')
+  const voiceControlRef = useRef<HTMLDivElement>(null)
+  const voiceButtonRef = useRef<HTMLButtonElement>(null)
   const normalizedQuery = query.trim().toLowerCase()
   const localResults = useMemo(() => {
     if (!normalizedQuery || normalizedQuery.includes(',')) return []
@@ -77,11 +79,7 @@ export function AppShell({ planet, onPlanetChange, onLocationSelect, locationOpt
     }
     const routeNames: Record<string, { path: string; aliases: string[] }> = {
       explore: { path: '/explore', aliases: ['explore', 'explorer', 'planetary explorer'] },
-      discover: { path: '/discover', aliases: ['discover', 'discovery'] },
       research: { path: '/research', aliases: ['research', 'research lab'] },
-      compare: { path: '/compare', aliases: ['compare', 'comparison'] },
-      analyze: { path: '/analyze', aliases: ['analyze', 'analysis'] },
-      reports: { path: '/reports', aliases: ['reports', 'report'] },
       'digital twin': { path: '/digital-twin', aliases: ['digital twin', 'rover twin', 'rover simulation', 'simulation'] },
       workspace: { path: '/workspace', aliases: ['workspace', 'work space'] },
     }
@@ -104,10 +102,39 @@ export function AppShell({ planet, onPlanetChange, onLocationSelect, locationOpt
   }, [locationOptions, navigate, onLocationSelect, onPlanetChange, planet])
   const voice = useSpeechRecognition(runVoiceCommand)
 
-  function activateVoice() {
+  const closeVoice = useCallback(() => {
+    voice.dismiss()
     setCommandResult('')
+    window.requestAnimationFrame(() => voiceButtonRef.current?.focus())
+  }, [voice.dismiss])
+
+  function activateVoice(retry = false) {
+    setCommandResult('')
+    if (!retry && (voice.status === 'requesting' || voice.status === 'listening')) {
+      voice.stop()
+      return
+    }
     voice.start()
   }
+
+  useEffect(() => {
+    if (voice.status === 'idle') return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeVoice()
+      }
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !voiceControlRef.current?.contains(event.target)) closeVoice()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('pointerdown', onPointerDown)
+    }
+  }, [closeVoice, voice.status])
 
   useEffect(() => {
     setGeocodeResults([])
@@ -209,16 +236,16 @@ export function AppShell({ planet, onPlanetChange, onLocationSelect, locationOpt
           </nav>
 
           <div className="toolbar-utilities">
-            <div className="voice-control">
-              <button className={`utility-button voice-button${voice.status === 'listening' ? ' selected listening' : ''}`} type="button" aria-label={voice.status === 'listening' ? 'Stop voice recognition' : 'Start voice recognition'} aria-pressed={voice.status === 'listening'} onClick={activateVoice}><Mic /></button>
+            <div className="voice-control" ref={voiceControlRef}>
+              <button ref={voiceButtonRef} className={`utility-button voice-button${voice.status === 'listening' ? ' selected listening' : ''}`} type="button" aria-label={voice.status === 'requesting' || voice.status === 'listening' ? 'Stop voice recognition' : 'Start voice recognition'} aria-pressed={voice.status === 'listening'} onClick={() => activateVoice()}><Mic /></button>
               {voice.status !== 'idle' && (
-                <div className="voice-panel" role="status" aria-live="polite">
-                  <div className="voice-panel-heading"><strong>VOICE INPUT</strong><button type="button" aria-label="Dismiss voice status" onClick={() => { voice.stop(); setCommandResult('') }}><X /></button></div>
-                  <p>{voice.status === 'requesting' ? 'Waiting for microphone permission…' : voice.status === 'listening' ? 'Listening. Speak a short command.' : voice.status === 'success' ? 'Recognition complete.' : voice.error}</p>
+                <div className="voice-panel" role="dialog" aria-label="Voice input">
+                  <div className="voice-panel-heading"><strong>VOICE INPUT</strong><button type="button" aria-label="Dismiss voice status" onClick={closeVoice}><X /></button></div>
+                  <p role="status" aria-live="polite">{voice.status === 'requesting' ? 'Requesting microphone permission…' : voice.status === 'listening' ? 'Listening. Speak a short command.' : voice.status === 'processing' ? 'Processing your voice command…' : voice.status === 'success' ? 'Recognition complete.' : voice.error}</p>
                   {voice.transcript && <p className="voice-transcript"><span>HEARD</span> “{voice.transcript}”</p>}
                   {commandResult && <p className="voice-command-result">{commandResult}</p>}
                   {voice.interimTranscript && <p className="voice-interim">{voice.interimTranscript}</p>}
-                  {voice.status !== 'listening' && <button type="button" className="voice-retry" onClick={activateVoice}>Try voice again</button>}
+                  {voice.status !== 'listening' && voice.status !== 'requesting' && voice.status !== 'processing' && voice.status !== 'unsupported' && <button type="button" className="voice-retry" onClick={() => activateVoice(true)}>Try voice again</button>}
                   <small>One-time English recognition. Audio and transcripts are not saved.</small>
                 </div>
               )}

@@ -24,7 +24,6 @@ export const BODIES: Record<LocalBody, {
     fogColor: '#9295a2',
     highColor: '#c2c5d4',
     features: [
-      { name: 'Tycho Crater', body: 'Moon', latitude: -43.31, longitude: -11.36, description: 'Bright-rayed southern impact crater with a prominent central peak.', terrain: 'Crater Highlands', searchRadiusKm: 220 },
       { name: 'Copernicus', body: 'Moon', latitude: 9.62, longitude: -20.08, description: 'Large young impact crater west of Mare Imbrium.', terrain: 'Impact Crater', searchRadiusKm: 160 },
       { name: 'Apollo 11 Site', body: 'Moon', latitude: 0.6741, longitude: 23.4729, description: 'The first crewed lunar landing site in southwestern Mare Tranquillitatis.', terrain: 'Lunar Mare', searchRadiusKm: 120 },
       { name: 'Mare Tranquillitatis', body: 'Moon', latitude: 8.5, longitude: 31.4, description: 'Broad basaltic plain that includes the Apollo 11 landing region.', terrain: 'Basaltic Plain', searchRadiusKm: 650 },
@@ -45,7 +44,6 @@ export const BODIES: Record<LocalBody, {
       { name: 'Olympus Mons', body: 'Mars', latitude: 18.65, longitude: -133.8, description: 'Giant shield volcano in the Tharsis volcanic province.', terrain: 'Shield Volcano', searchRadiusKm: 550 },
       { name: 'Valles Marineris', body: 'Mars', latitude: -13.9, longitude: -59.2, description: 'System of immense tectonic canyons near the Martian equator.', terrain: 'Canyon System', searchRadiusKm: 1400 },
       { name: 'Gale Crater', body: 'Mars', latitude: -5.4, longitude: 137.8, description: 'Impact crater explored by the Curiosity rover.', terrain: 'Impact Crater', searchRadiusKm: 220 },
-      { name: 'Jezero Crater', body: 'Mars', latitude: 18.38, longitude: 77.58, description: 'Ancient lake basin and landing site of the Perseverance rover.', terrain: 'Impact Crater', searchRadiusKm: 180 },
       { name: 'Hellas Planitia', body: 'Mars', latitude: -42.4, longitude: 70.5, description: 'Large southern impact basin with a low, broad floor.', terrain: 'Impact Basin', searchRadiusKm: 1100 },
       { name: 'Tharsis', body: 'Mars', latitude: 3, longitude: -110, description: 'Broad volcanic rise hosting several of Mars’s largest volcanoes.', terrain: 'Volcanic Province', searchRadiusKm: 1600 },
       { name: 'Utopia Planitia', body: 'Mars', latitude: 46.7, longitude: 117.5, description: 'Northern lowland basin and landing region of Viking 2.', terrain: 'Impact Basin', searchRadiusKm: 1200 },

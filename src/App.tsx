@@ -12,12 +12,15 @@ const DigitalTwinPage = lazy(() => import('./digital-twin/DigitalTwinPage'))
 
 const sections: Section[] = [
   { label: 'Explore', path: '/explore', eyebrow: '01 / PLANETARY EXPLORER', description: 'Explore surface maps and inspect regions in a shared planetary workspace.' },
-  { label: 'Discover', path: '/discover', eyebrow: '02 / EARTH ANALOGS', description: 'Curated candidate discovery with evidence and source coverage.' },
   { label: 'Research', path: '/research', eyebrow: '03 / RESEARCH LAB', description: 'Source registry, scientific documents and research context.' },
+  { label: 'Digital Twin', path: '/digital-twin', eyebrow: '07 / ROVER SIMULATION', description: 'Interactive rover mobility, terrain and thermal response simulation.' },
+]
+
+const placeholderRouteSections: Section[] = [
+  { label: 'Discover', path: '/discover', eyebrow: '02 / EARTH ANALOGS', description: 'Curated candidate discovery with evidence and source coverage.' },
   { label: 'Compare', path: '/compare', eyebrow: '04 / COMPARISON STUDIO', description: 'Compare candidate evidence with units, coverage and provenance.' },
   { label: 'Analyze', path: '/analyze', eyebrow: '05 / ANALOG INTELLIGENCE', description: 'Evidence-backed analyses and transferability conditions.' },
   { label: 'Reports', path: '/reports', eyebrow: '06 / RESEARCH OUTPUTS', description: 'Reproducible research briefs and data exports.' },
-  { label: 'Digital Twin', path: '/digital-twin', eyebrow: '07 / ROVER SIMULATION', description: 'Interactive rover mobility, terrain and thermal response simulation.' },
 ]
 
 export default function App() {
@@ -46,12 +49,6 @@ export default function App() {
       longitude: result.lng,
       description: `${result.country ? `${result.country} · ` : ''}Mentioned in ${result.document_title}`,
       terrain: 'Unclassified',
-      researchEvidence: {
-        role: 'other',
-        quote: result.quote,
-        documentTitle: result.document_title,
-        page: result.page_number,
-      },
     }
     setPlanet(next.body)
     setLocation(next)
@@ -89,11 +86,11 @@ export default function App() {
           </Suspense>
         )} />
         <Route path="/research" element={<ResearchLab onLocationsFound={receiveResearchLocations} locations={researchLocations} onLocationSelect={selectResearchLocation} onClearLocations={clearResearchLocations} />} />
-        <Route path="/discovery" element={<WorkspacePage section={{ ...sections[1], path: '/discovery' }} planet={planet} />} />
-        <Route path="/comparison" element={<WorkspacePage section={{ ...sections[3], path: '/comparison' }} planet={planet} />} />
+        <Route path="/discovery" element={<WorkspacePage section={{ ...placeholderRouteSections[0], path: '/discovery' }} planet={planet} />} />
+        <Route path="/comparison" element={<WorkspacePage section={{ ...placeholderRouteSections[1], path: '/comparison' }} planet={planet} />} />
         <Route path="/transferability" element={<WorkspacePage section={{ label: 'Transferability', path: '/transferability', eyebrow: 'ANALYZE / ENVIRONMENTAL GAPS', description: 'Compare experiment conditions with explicit environmental limits and evidence status.' }} planet={planet} />} />
         <Route path="/rehearsal" element={<WorkspacePage section={{ label: 'Route rehearsal', path: '/rehearsal', eyebrow: 'MISSION / TERRAIN REHEARSAL', description: 'A bounded terrain and route-planning workspace will be available when verified DEM data is configured.' }} planet={planet} />} />
-        {sections.filter((section) => section.path !== '/explore' && section.path !== '/digital-twin' && section.path !== '/research').map((section) => (
+        {placeholderRouteSections.map((section) => (
           <Route key={section.path} path={section.path} element={<WorkspacePage section={section} planet={planet} />} />
         ))}
         <Route path="*" element={<Navigate to="/" replace />} />
