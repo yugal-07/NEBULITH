@@ -293,17 +293,21 @@ def test_multi_file_upload_per_file_status(client: TestClient):
     assert "Executable" in bad_res["error"]
 
 
-def test_cors_preflight(client: TestClient):
+@pytest.mark.parametrize(
+    "origin",
+    ["http://localhost:5173", "https://nebulith.netlify.app"],
+)
+def test_cors_preflight(client: TestClient, origin: str):
     response = client.options(
         "/api/v1/documents",
         headers={
-            "Origin": "http://localhost:5173",
+            "Origin": origin,
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "content-type",
         },
     )
     assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+    assert response.headers.get("access-control-allow-origin") == origin
 
 
 def test_rag_config_endpoint(client: TestClient):

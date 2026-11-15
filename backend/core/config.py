@@ -10,6 +10,29 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 ENV_FILE = BASE_DIR / ".env"
 load_dotenv(ENV_FILE)
 
+DEFAULT_FRONTEND_ORIGIN = "https://nebulith.netlify.app"
+DEFAULT_DEVELOPMENT_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8001",
+)
+
+
+def cors_origins_from_env() -> list[str]:
+    """Return the canonical frontend plus configured additional origins."""
+    raw_origins = (
+        os.getenv("FRONTEND_ORIGIN", DEFAULT_FRONTEND_ORIGIN),
+        *os.getenv("CORS_ORIGINS", ",".join(DEFAULT_DEVELOPMENT_ORIGINS)).split(","),
+    )
+    origins: list[str] = []
+    for raw_origin in raw_origins:
+        origin = raw_origin.strip().rstrip("/")
+        if origin and origin not in origins:
+            origins.append(origin)
+    return origins
+
 
 class Settings(BaseModel):
     # General
@@ -23,14 +46,7 @@ class Settings(BaseModel):
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
     CORS_ORIGIN_REGEX: str = os.getenv("CORS_ORIGIN_REGEX", r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$")
-    CORS_ORIGINS: list[str] = [
-        origin.strip()
-        for origin in os.getenv(
-            "CORS_ORIGINS",
-            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8001",
-        ).split(",")
-        if origin.strip()
-    ]
+    CORS_ORIGINS: list[str] = Field(default_factory=cors_origins_from_env)
 
     # Database
     DATABASE_URL: str = os.getenv(

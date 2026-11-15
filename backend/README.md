@@ -58,7 +58,8 @@ backend/
 3. **Swappable Providers**:
    - LLM and embedding providers are behind modular interfaces (`LLMProvider`, `EmbeddingProvider`). In offline/test mode, deterministic mock implementations run without network access or API keys.
 4. **CORS & OpenAPI**:
-   - Dev CORS enabled for `http://localhost:*` and `http://127.0.0.1:*`.
+   - CORS allows the production frontend at `https://nebulith.netlify.app` and local development origins at `http://localhost:*` and `http://127.0.0.1:*`.
+   - Set `FRONTEND_ORIGIN` to the canonical deployed frontend and use `CORS_ORIGINS` for a comma-separated list of additional exact origins. Wildcards such as `*.netlify.app` are not valid entries in that list.
    - Complete OpenAPI schema available at `/openapi.json` and saved to `backend/openapi.json`.
 
 ---

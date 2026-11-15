@@ -11,6 +11,8 @@ from backend.core.providers.llm import get_llm_provider, MockLLMProvider
 
 def test_default_config(monkeypatch):
     monkeypatch.setenv("EMBEDDING_PROVIDER", "local")
+    monkeypatch.delenv("FRONTEND_ORIGIN", raising=False)
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
     s = Settings()
     assert s.PROJECT_NAME == "NEBULITH"
     assert s.MAX_UPLOAD_SIZE_MB == 50
@@ -21,6 +23,19 @@ def test_default_config(monkeypatch):
     assert s.EMBEDDING_PROVIDER == "local"
     assert s.EMBEDDING_MODEL == "BAAI/bge-small-en-v1.5"
     assert s.EMBEDDING_DIMENSION == 384
+    assert "https://nebulith.netlify.app" in s.CORS_ORIGINS
+
+
+def test_frontend_origin_is_merged_with_configured_cors_origins(monkeypatch):
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://nebulith.netlify.app/")
+    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:5173")
+
+    s = Settings()
+
+    assert s.CORS_ORIGINS == [
+        "https://nebulith.netlify.app",
+        "http://localhost:5173",
+    ]
 
 
 def test_embedding_provider_interface(monkeypatch):

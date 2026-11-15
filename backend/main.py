@@ -54,7 +54,7 @@ async def request_middleware(request: Request, call_next):
 register_error_handlers(app)
 
 # CORS configuration
-# Allows http://localhost:* and http://127.0.0.1:* on any port in development
+# Allows the production frontend plus localhost/127.0.0.1 in development.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
