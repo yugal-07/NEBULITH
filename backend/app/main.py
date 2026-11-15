@@ -3,16 +3,20 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import asyncio
+import time
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Request, Response
+import httpx
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .map_services import sample_terrarium
 
 
 APP_VERSION = "0.1.0"
@@ -133,6 +137,14 @@ class DiscoveryResult(BaseModel):
     algorithm_version: str | None = None
 
 
+EvidenceValue.model_rebuild()
+StudyCreate.model_rebuild()
+StudyPatch.model_rebuild()
+Study.model_rebuild()
+Candidate.model_rebuild()
+DiscoveryResult.model_rebuild()
+
+
 def connect() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(DB_PATH)
@@ -170,6 +182,9 @@ app = FastAPI(
     version=APP_VERSION,
     description="Local-first planetary research workspace. Missing evidence remains null; outputs are not safety certifications.",
 )
+geocode_cache: dict[str, list[dict[str, Any]]] = {}
+geocode_lock = asyncio.Lock()
+geocode_last_request = 0.0
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.environ.get("NEBULITH_CORS_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173").split(","),
@@ -235,6 +250,46 @@ def list_targets(body: Literal["earth", "moon", "mars"] | None = None) -> dict[s
     return {"items": [], "body": body, "status": "not_configured", "message": "No verified target AOIs are configured."}
 
 
+@app.get("/api/v1/geocode")
+async def geocode(q: str = Query(min_length=2, max_length=160)) -> dict[str, Any]:
+    """User-triggered geocoding only; cache and keep to Nominatim's public rate limit."""
+    global geocode_last_request
+    query = " ".join(q.split())
+    key = query.casefold()
+    if key in geocode_cache:
+        return {"items": geocode_cache[key], "attribution": "\u00a9 OpenStreetMap contributors \u00b7 Nominatim"}
+    async with geocode_lock:
+        if key in geocode_cache:
+            return {"items": geocode_cache[key], "attribution": "© OpenStreetMap contributors · Nominatim"}
+        delay = 1.05 - (time.monotonic() - geocode_last_request)
+        if delay > 0:
+            await asyncio.sleep(delay)
+        geocode_last_request = time.monotonic()
+        try:
+            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+                response = await client.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={"q": query, "format": "jsonv2", "limit": 5},
+                    headers={"User-Agent": "NEBULITH/0.1 (interactive planetary map)", "Accept-Language": "en"},
+                )
+            response.raise_for_status()
+            items = [{"name": result["display_name"], "latitude": float(result["lat"]), "longitude": float(result["lon"])} for result in response.json()]
+        except (httpx.HTTPError, ValueError, KeyError) as exc:
+            raise HTTPException(503, {"code": "geocoder_unavailable", "message": "Nominatim could not complete this search. Please try again later."}) from exc
+        geocode_cache[key] = items
+        if len(geocode_cache) > 256:
+            geocode_cache.pop(next(iter(geocode_cache)))
+        return {"items": items, "attribution": "© OpenStreetMap contributors · Nominatim"}
+
+
+@app.get("/api/v1/terrain/sample")
+async def terrain_sample(lat: float = Query(ge=-85, le=85), lon: float = Query(ge=-180, le=180)) -> dict[str, Any]:
+    try:
+        return await sample_terrarium(lon, lat)
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        raise HTTPException(503, {"code": "terrain_unavailable", "message": "Terrarium terrain tiles are unavailable for this location."}) from exc
+
+
 @app.post("/api/v1/studies", response_model=Study, status_code=201)
 def create_study(payload: StudyCreate) -> Study:
     now = utc_now()
@@ -276,7 +331,7 @@ def patch_study(study_id: str, payload: StudyPatch) -> Study:
     return updated
 
 
-@app.delete("/api/v1/studies/{study_id}", status_code=204)
+@app.delete("/api/v1/studies/{study_id}", status_code=204, response_class=Response)
 def delete_study(study_id: str) -> Response:
     with db_session() as db:
         cursor = db.execute("DELETE FROM studies WHERE study_id=?", (study_id,))

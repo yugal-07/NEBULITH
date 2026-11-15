@@ -1,0 +1,44 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: nebulith-pgvector
+    environment:
+      POSTGRES_DB: nebulith
+      POSTGRES_USER: nebulith
+      POSTGRES_PASSWORD: nebulith_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - nebulith_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nebulith -d nebulith"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: nebulith-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://nebulith:nebulith_dev_password@db:5432/nebulith
+      ENVIRONMENT: development
+      DEBUG: "true"
+      LOG_LEVEL: INFO
+      HOST: 0.0.0.0
+      PORT: 8000
+      LLM_PROVIDER: mock
+      EMBEDDING_PROVIDER: mock
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app/backend
+      - nebulith_uploads:/app/backend/storage/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  nebulith_pgdata:
+  nebulith_uploads:

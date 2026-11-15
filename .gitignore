@@ -1,6 +1,29 @@
-backend/data/*.sqlite3
-backend/data/*.sqlite3-shm
-backend/data/*.sqlite3-wal
+backend/data/
 backend/.venv/
 backend/**/__pycache__/
 backend/**/*.py[cod]
+node_modules
+node_modules
+
+# dependencies and builds
+node_modules/
+dist/
+*.tar
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# backend runtime data
+backend/storage/
+*.db
+*.sqlite3
+.cache/

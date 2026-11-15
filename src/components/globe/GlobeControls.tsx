@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Grid2X2, Layers3, Minus, Plus, RotateCcw, ScanLine } from 'lucide-react'
 import type { Planet } from '../../types'
+import type { Basemap } from './PlanetaryGlobe'
 
 type Props = {
   planet: Planet
@@ -10,20 +11,30 @@ type Props = {
   onResetRotation: () => void
   grid: boolean
   onGridChange: (enabled: boolean) => void
-  clouds: boolean
-  onCloudsChange: (enabled: boolean) => void
+  basemap: Basemap
+  onBasemapChange: (basemap: Basemap) => void
 }
 
-export function GlobeControls({ planet, onZoomIn, onZoomOut, onReset, onResetRotation, grid, onGridChange, clouds, onCloudsChange }: Props) {
+export function GlobeControls({ planet, onZoomIn, onZoomOut, onReset, onResetRotation, grid, onGridChange, basemap, onBasemapChange }: Props) {
   const [layersOpen, setLayersOpen] = useState(false)
   return (
     <div className="globe-control-wrap">
       {layersOpen && (
         <div className="layer-popover" aria-label="Globe display layers">
-          <p className="layer-heading">SURFACE LAYERS</p>
-          {planet === 'Earth' && <label><input type="checkbox" checked={clouds} onChange={(event) => onCloudsChange(event.target.checked)} /> Cloud cover <span>EARTH</span></label>}
-          <label><input type="checkbox" checked={grid} onChange={(event) => onGridChange(event.target.checked)} /> Coordinate grid <span>SPHERE</span></label>
-          <p className="layer-note">Planet surface textures are for visual orientation and are not analysis products.</p>
+          <p className="layer-heading">BASE MAP</p>
+          {(planet === 'Earth'
+            ? ([
+                ['satellite', 'Satellite', 'ESRI'],
+                ['street', 'Street map', 'OSM'],
+                ['terrain', 'Terrain', 'DEM'],
+              ] as const)
+            : ([['satellite', `${planet} surface`, 'LOCAL XYZ']] as const)).map(([value, label, provider]) => (
+              <button key={value} type="button" className="layer-choice" aria-pressed={planet !== 'Earth' || basemap === value} onClick={() => { if (planet === 'Earth') onBasemapChange(value) }}>
+                <span className={`layer-radio${planet !== 'Earth' || basemap === value ? ' selected' : ''}`} />{label}<span>{provider}</span>
+            </button>
+          ))}
+          <label className="layer-grid-toggle"><input type="checkbox" checked={grid} onChange={(event) => onGridChange(event.target.checked)} /> Coordinate grid <span>GLOBE</span></label>
+          <p className="layer-note">{planet === 'Earth' ? 'Planetary maps use NASA Trek WMTS imagery. Earth terrain uses Terrarium elevation tiles.' : `${planet} surface tiles are stored locally.`}</p>
         </div>
       )}
       <div className="globe-controls" role="toolbar" aria-label="Planetary globe controls">

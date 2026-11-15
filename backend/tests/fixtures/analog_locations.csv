@@ -1,0 +1,5 @@
+location_name,latitude,longitude,mean_temp_k,annual_precip_mm,soil_ph
+Atacama Yungay,-24.08,-69.95,288.15,1.5,8.2
+McMurdo Dry Valleys,-77.53,162.98,253.0,8.0,8.5
+Danakil Depression,14.24,40.3,307.5,25.0,3.2
+Mojave Desert,35.01,-115.47,295.4,85.0,7.9

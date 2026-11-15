@@ -9,13 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react-three/drei": "^10.7.9",
-    "@react-three/fiber": "^9.8.2",
     "lucide-react": "^1.73.0",
+    "maplibre-gl": "^5.24.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.0.0",
-    "three": "^0.187.0"
+    "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

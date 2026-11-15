@@ -1,12 +1,12 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import type { Map as MapLibreMap } from 'maplibre-gl'
 import { GlobeControls } from '../components/globe/GlobeControls'
+import { PlanetaryGlobe, type Basemap, type LocationMetrics } from '../components/globe/PlanetaryGlobe'
 import { StarfieldBackground } from '../components/StarfieldBackground'
 import { formatCoordinate, type ExplorerLocation } from '../data/locations'
+import { BODIES } from '../data/planetaryFeatures'
 import type { Planet } from '../types'
-
-const PlanetaryGlobe = lazy(() => import('../components/globe/PlanetaryGlobe').then((module) => ({ default: module.PlanetaryGlobe })))
 
 type Props = {
   planet: Planet
@@ -32,72 +32,37 @@ function TerrainSketch() {
   )
 }
 
-export function Overview({ planet, location, onLocationSelect, highContrast }: Props) {
-  const controlsRef = useRef<OrbitControlsImpl | null>(null)
-  const focusFrame = useRef<number | null>(null)
+function displayMetric(value: number | null, unit: string, status: LocationMetrics['status']) {
+  if (status === 'loading') return 'Loading…'
+  if (status === 'error') return 'Unavailable'
+  return value === null ? '—' : `${value.toFixed(1)} ${unit}`
+}
+
+export function Overview({ planet, location, onLocationSelect }: Props) {
+  const mapRef = useRef<MapLibreMap | null>(null)
   const [grid, setGrid] = useState(false)
-  const [clouds, setClouds] = useState(true)
+  const [basemap, setBasemap] = useState<Basemap>('satellite')
+  const [bodyTilesLoading, setBodyTilesLoading] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
-  const [globeReady, setGlobeReady] = useState(false)
+  const [metrics, setMetrics] = useState<LocationMetrics>({ elevationMeters: null, slopeDegrees: null, terrainClass: null, status: 'loading' })
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setGlobeReady(true), 180)
-    return () => window.clearTimeout(timer)
-  }, [])
-
-  useEffect(() => {
-    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current)
-    const controls = controlsRef.current
-    if (!controls) return
-
-    const latitude = location.latitude * Math.PI / 180
-    const longitude = (location.longitude + 180) * Math.PI / 180
-    const destination = {
-      x: -Math.cos(latitude) * Math.cos(longitude) * 3.35,
-      y: Math.sin(latitude) * 3.35,
-      z: Math.cos(latitude) * Math.sin(longitude) * 3.35,
-    }
-    const start = controls.object.position.clone()
-    const startedAt = performance.now()
-    const animate = (now: number) => {
-      const progress = Math.min(1, (now - startedAt) / 720)
-      const eased = 1 - (1 - progress) ** 3
-      controls.object.position.set(
-        start.x + (destination.x - start.x) * eased,
-        start.y + (destination.y - start.y) * eased,
-        start.z + (destination.z - start.z) * eased,
-      )
-      controls.update()
-      if (progress < 1) focusFrame.current = requestAnimationFrame(animate)
-      else focusFrame.current = null
-    }
-    focusFrame.current = requestAnimationFrame(animate)
-    return () => { if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current) }
-  }, [location])
-
-  function zoom(amount: number) {
-    const controls = controlsRef.current
-    if (!controls) return
-    const camera = controls.object
-    camera.position.setLength(THREEClamp(camera.position.length() + amount, 2.35, 5.2))
-    controls.update()
+  function changeBasemap(next: Basemap) {
+    if (planet !== 'Earth' && next === 'street') return
+    setBasemap(next)
   }
 
-  function resetCamera() {
-    const controls = controlsRef.current
-    if (!controls) return
-    controls.reset()
-    controls.object.position.set(0, .05, 3.35)
-    controls.update()
+  function resetView() {
+    const center = planet === 'Earth' ? [14, 20] as [number, number] : BODIES[planet].center
+    mapRef.current?.flyTo({ center, zoom: 1.25, bearing: 0, pitch: 0, duration: 900, essential: true })
   }
 
-  function resetRotation() {
-    const controls = controlsRef.current
-    if (!controls) return
-    const distance = controls.object.position.length()
-    controls.object.position.set(0, .05, distance)
-    controls.update()
-  }
+  const metricsNote = planet === 'Earth'
+    ? metrics.status === 'loading'
+      ? 'Sampling Terrarium elevation tiles at the selected coordinates.'
+      : metrics.status === 'error'
+        ? 'Terrarium elevation tiles could not be reached. Retry by selecting the point again.'
+        : 'Earth elevation from Terrarium tiles; slope is a local adjacent-pixel estimate, not a landform analysis.'
+    : 'Elevation data is not connected for this body yet.'
 
   return (
     <>
@@ -107,20 +72,20 @@ export function Overview({ planet, location, onLocationSelect, highContrast }: P
         <div className="planetary-stage" aria-label={`${planet} interactive globe`}>
           <div className="orbital-halo orbital-halo-one" aria-hidden="true" />
           <div className="orbital-halo orbital-halo-two" aria-hidden="true" />
-          {globeReady ? (
-            <Suspense fallback={<div className="globe-boot"><span className="loading-orbit" />PREPARING INTERACTIVE SURFACE</div>}>
-              <PlanetaryGlobe
-                planet={planet}
-                location={location}
-                grid={grid}
-                clouds={clouds}
-                highContrast={highContrast}
-                onLocationSelect={onLocationSelect}
-                controlsRef={controlsRef}
-              />
-            </Suspense>
-          ) : <div className="globe-boot"><span className="loading-orbit" />PREPARING INTERACTIVE SURFACE</div>}
+          <PlanetaryGlobe
+            planet={planet}
+            location={location}
+            basemap={basemap}
+            grid={grid}
+            onLocationSelect={onLocationSelect}
+            onMetricsChange={setMetrics}
+            onBodyTilesLoading={setBodyTilesLoading}
+            mapControlRef={mapRef}
+          />
         </div>
+        {bodyTilesLoading && planet !== 'Earth' && (
+          <div className="globe-loading body-tiles-loading" role="status"><span className="loading-orbit" /> Loading {planet} surface</div>
+        )}
 
         <div className="overview-content">
           <p className="eyebrow"><span className="eyebrow-mark">●</span> PLANETARY EXPLORATION <span className="eyebrow-version">/ v1.0</span></p>
@@ -130,19 +95,19 @@ export function Overview({ planet, location, onLocationSelect, highContrast }: P
             <Link className="button-primary" to="/explore">START EXPLORING <span aria-hidden="true">↗</span></Link>
             <button className="button-secondary" type="button" aria-expanded={aboutOpen} onClick={() => setAboutOpen((value) => !value)}>{aboutOpen ? 'LESS' : 'LEARN MORE'} <span aria-hidden="true">{aboutOpen ? '−' : '+'}</span></button>
           </div>
-          {aboutOpen && <p className="learn-more-copy">Explore planetary surface maps, inspect coordinates and move between Earth, the Moon and Mars. Scientific analysis datasets are not connected yet.</p>}
+          {aboutOpen && <p className="learn-more-copy">Explore planetary imagery, inspect coordinates, and switch between Earth, the Moon, and Mars. Earth elevations are sampled from Terrarium; other scientific analysis datasets are not connected yet.</p>}
         </div>
 
         <GlobeControls
           planet={planet}
-          onZoomIn={() => zoom(-.45)}
-          onZoomOut={() => zoom(.45)}
-          onReset={resetCamera}
-          onResetRotation={resetRotation}
+          onZoomIn={() => mapRef.current?.zoomIn({ duration: 250 })}
+          onZoomOut={() => mapRef.current?.zoomOut({ duration: 250 })}
+          onReset={resetView}
+          onResetRotation={() => mapRef.current?.easeTo({ bearing: 0, pitch: 0, duration: 450 })}
           grid={grid}
           onGridChange={setGrid}
-          clouds={clouds}
-          onCloudsChange={setClouds}
+          basemap={basemap}
+          onBasemapChange={changeBasemap}
         />
 
         <aside className="location-panel" aria-label="Selected location information">
@@ -154,25 +119,21 @@ export function Overview({ planet, location, onLocationSelect, highContrast }: P
             <div className="terrain-thumb"><TerrainSketch /><span>ILLUSTRATIVE</span></div>
             <div className="location-name-block">
               <strong>{location.name}</strong>
-              <span>{location.body.toUpperCase()} <i>·</i> {location.terrain.toUpperCase()}</span>
+              <span>{location.body.toUpperCase()} <i>·</i> {(metrics.terrainClass ?? location.terrain).toUpperCase()}</span>
               <small>{location.description}</small>
             </div>
           </div>
           <div className="coordinate-row"><span>COORDINATES</span><b>{formatCoordinate(location.latitude, 'latitude')} / {formatCoordinate(location.longitude, 'longitude')}</b></div>
           <div className="location-metrics">
-            <div><span>ELEVATION</span><b>—</b></div>
-            <div><span>SLOPE</span><b>—</b></div>
-            <div><span>TERRAIN CLASS</span><b>{location.terrain}</b></div>
+            <div><span>ELEVATION</span><b>{planet === 'Earth' ? displayMetric(metrics.elevationMeters, 'm', metrics.status) : '—'}</b></div>
+            <div><span>SLOPE</span><b>{planet === 'Earth' ? displayMetric(metrics.slopeDegrees, '°', metrics.status) : '—'}</b></div>
+            <div><span>TERRAIN CLASS</span><b>{metrics.terrainClass ?? (metrics.status === 'loading' ? 'Loading…' : location.terrain)}</b></div>
           </div>
-          <p className="location-disclaimer">Elevation and slope datasets are not connected. Click the globe or use search to select a location.</p>
+          <p className="location-disclaimer">{metricsNote}</p>
         </aside>
 
         <div className="hero-metadata" aria-hidden="true"><span>INTERACTIVE SURFACE VIEW</span><span>DRAG TO ROTATE <i>·</i> SCROLL TO ZOOM</span></div>
       </section>
     </>
   )
-}
-
-function THREEClamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value))
 }
