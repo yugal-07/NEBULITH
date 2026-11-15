@@ -54,11 +54,12 @@ button:disabled { cursor: not-allowed; }
 .planet-dot.earth { background: #8298eb; box-shadow: 0 0 8px rgb(130 152 235 / 60%); }
 .planet-dot.moon { background: #c2c0c9; }
 .planet-dot.mars { background: #c7775f; }
-.primary-nav { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: center; gap: clamp(10px, 1.2vw, 21px); }
+.primary-nav { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: center; gap: clamp(7px, .8vw, 13px); }
 .nav-link { display: inline-flex; align-items: center; gap: 5px; color: #a0a3b1; white-space: nowrap; text-transform: uppercase; font: 9px var(--pixel); letter-spacing: -.025em; transition: color .18s ease; }
 .nav-link:hover, .nav-link.active { color: #fff; }
 .nav-dot { color: #656a79; font: 12px Inter, sans-serif; }
 .nav-link.active .nav-dot { color: var(--periwinkle); }
+.nav-label { display: inline-block; }
 .toolbar-utilities { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; padding-left: 8px; border-left: 1px solid rgb(255 255 255 / 10%); }
 .utility-button { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0; border: 1px solid transparent; border-radius: 1440px; color: #b3b6c3; background: transparent; cursor: pointer; transition: color .16s ease, background .16s ease, border-color .16s ease; }
 .utility-button svg { width: 15px; height: 15px; stroke-width: 1.55; }
@@ -228,7 +229,7 @@ button:disabled { cursor: not-allowed; }
   .brand { min-width: 122px; gap: 7px; }
   .brand-wordmark { font-size: 11px; }
   .planet-option { height: 29px; padding: 0 8px; font-size: 8px; }
-  .primary-nav { gap: 9px; }
+  .primary-nav { gap: 7px; }
   .nav-link { gap: 3px; font-size: 8px; }
   .workspace-button { width: 34px; padding: 0; font-size: 0; }
   .overview-content { width: 48%; }

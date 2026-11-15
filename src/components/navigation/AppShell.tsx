@@ -82,6 +82,7 @@ export function AppShell({ planet, onPlanetChange, onLocationSelect, locationOpt
       compare: { path: '/compare', aliases: ['compare', 'comparison'] },
       analyze: { path: '/analyze', aliases: ['analyze', 'analysis'] },
       reports: { path: '/reports', aliases: ['reports', 'report'] },
+      'digital twin': { path: '/digital-twin', aliases: ['digital twin', 'rover twin', 'rover simulation', 'simulation'] },
       workspace: { path: '/workspace', aliases: ['workspace', 'work space'] },
     }
     const route = Object.entries(routeNames).find(([, value]) => value.aliases.includes(command))
@@ -202,6 +203,7 @@ export function AppShell({ planet, onPlanetChange, onLocationSelect, locationOpt
             {sections.map((section) => (
               <NavLink key={section.path} to={section.path} end={section.path === '/explore'} className={({ isActive }) => `nav-link${isActive || (section.path === '/explore' && window.location.pathname === '/') ? ' active' : ''}`}>
                 <span className="nav-dot">•</span>
+                <span className="nav-label">{section.label}</span>
               </NavLink>
             ))}
           </nav>
