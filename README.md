@@ -7,9 +7,19 @@ An interactive planetary explorer for Earth, the Moon and Mars, slowly turning i
 ![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
 
-[Repo](https://github.com/yugal-07/NEBULITH) | [Issues](https://github.com/yugal-07/NEBULITH/issues)
+## Frontend Preview
 
----
+### Interactive Planetary Explorer
+
+![NEBULITH interactive planetary explorer showing the Earth globe](docs/images/frontend-explorer.jpg)
+
+### Research Lab
+
+![NEBULITH Research Lab for document ingestion and grounded scientific retrieval](docs/images/frontend-research-lab.jpg)
+
+### Rover Mobility Digital Twin
+
+![NEBULITH rover mobility digital twin with terrain controls and live telemetry](docs/images/frontend-digital-twin.jpg)
 
 ## What is this?
 
@@ -204,14 +214,6 @@ NEBULITH is an independent project and isn't affiliated with or endorsed by NASA
 
 Order matters here. A similarity score is pointless before the measurements behind it can be trusted, and a terrain simulator built on invented terrain is worse than none.
 
-## Contributing
-
-Contributions and suggestions are welcome: a bug fix, a better interaction, a carefully sourced dataset, doc improvements, or a test that catches something I missed.
-
-Fork it, make a branch, make and test your change, then open a PR with a short note on what changed and why. For scientific or geospatial contributions, please include the original source, licence, units, coverage and any assumptions or limitations. Those details are part of the work.
-
-Found a bug or have an idea? [Open an issue](https://github.com/yugal-07/NEBULITH/issues).
-
 ## More docs
 
 - [`DESIGN.md`](./DESIGN.md): visual direction and interface decisions
@@ -219,6 +221,3 @@ Found a bug or have an idea? [Open an issue](https://github.com/yugal-07/NEBULIT
 - [`NEBULITH-INTEGRATION-PLAN.md`](./NEBULITH-INTEGRATION-PLAN.md): implementation phases and status
 - [`planning/terracroma-prototype/`](./planning/terracroma-prototype/): the original planning and spec package
 
-## License
-
-There's no license file yet. Until one is added, please don't assume the code is free to reuse, modify or redistribute.
