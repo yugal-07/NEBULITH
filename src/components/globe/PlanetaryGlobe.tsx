@@ -293,6 +293,10 @@ export function PlanetaryGlobe({ planet, location, basemap, grid, onLocationSele
     if (planet === 'Earth' || !bodySwitchLocation) markerRef.current?.setLngLat([location.longitude, location.latitude]).addTo(map)
     if (bodySwitchLocation) {
       pendingBodyLocationRef.current = null
+      if (location.researchEvidence) {
+        markerRef.current?.setLngLat([location.longitude, location.latitude]).addTo(map)
+        map.flyTo({ center: [location.longitude, location.latitude], zoom: 6, duration: 1100, essential: true })
+      }
       return
     }
     if (lastMapSelectionRef.current === key) {

@@ -104,10 +104,19 @@ This starts:
 
 ---
 
-## Running Tests
+## Running Tests & Smoke Verification
 
-Run the test suite using `pytest`:
+1. **Run full automated test suite with pytest**:
+   ```bash
+   python -m pytest backend/tests -v
+   ```
 
-```bash
-pytest backend/tests -v
-```
+2. **Run end-to-end API smoke test (PowerShell)**:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts/smoke_api.ps1 -BaseUrl "http://localhost:8000"
+   ```
+
+3. **Verify real LLM credentials (Gemini / OpenAI)**:
+   ```bash
+   python scripts/smoke_real_llm.py
+   ```

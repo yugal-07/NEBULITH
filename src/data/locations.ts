@@ -7,6 +7,13 @@ export type ExplorerLocation = {
   longitude: number
   description: string
   terrain: string
+  researchEvidence?: {
+    role: 'target' | 'analog_site' | 'other'
+    confidence?: number
+    quote: string
+    documentTitle: string
+    page: number | null
+  }
 }
 
 export const locations: ExplorerLocation[] = [

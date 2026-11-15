@@ -31,6 +31,8 @@ class ExtractedParameter(Base):
     # normalized_value in standard SI units (float or dict with min/max)
     normalized_value = Column(JSON, nullable=True)
     normalized_unit = Column(String(50), nullable=True)
+    conversion_failed = Column(Boolean, nullable=False, default=False)
+    conversion_error = Column(Text, nullable=True)
     
     page_number = Column(Integer, nullable=True)
     verbatim_quote = Column(Text, nullable=False)
@@ -56,6 +58,8 @@ class ExtractedParameter(Base):
             "unit": self.unit,
             "normalized_value": self.normalized_value,
             "normalized_unit": self.normalized_unit,
+            "conversion_failed": self.conversion_failed,
+            "conversion_error": self.conversion_error,
             "page_number": self.page_number,
             "verbatim_quote": self.verbatim_quote,
             "confidence": self.confidence,

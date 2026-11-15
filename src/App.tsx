@@ -1,12 +1,13 @@
 import { lazy, Suspense, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { AppShell } from './components/navigation/AppShell'
 import { Overview } from './pages/Overview'
 import { WorkspacePage } from './pages/WorkspacePage'
 import { MissionWorkspace } from './pages/MissionWorkspace'
+import { ResearchLab } from './pages/ResearchLab'
 import { defaultLocation, type ExplorerLocation, locations } from './data/locations'
 import type { Planet, Section } from './types'
-
+import type { ResearchLocationResult } from './components/researchLab/LocationResults'
 const DigitalTwinPage = lazy(() => import('./digital-twin/DigitalTwinPage'))
 
 const sections: Section[] = [
@@ -20,9 +21,11 @@ const sections: Section[] = [
 ]
 
 export default function App() {
+  const navigate = useNavigate()
   const [planet, setPlanet] = useState<Planet>('Earth')
   const [location, setLocation] = useState<ExplorerLocation>(defaultLocation('Earth'))
   const [highContrast, setHighContrast] = useState(false)
+  const [researchLocations, setResearchLocations] = useState<ResearchLocationResult[]>([])
 
   function changePlanet(nextPlanet: Planet) {
     setPlanet(nextPlanet)
@@ -32,6 +35,37 @@ export default function App() {
   function selectLocation(nextLocation: ExplorerLocation) {
     setPlanet(nextLocation.body)
     setLocation(nextLocation)
+  }
+
+  function selectResearchLocation(result: ResearchLocationResult) {
+    if (result.lat == null || result.lng == null) return
+    const next: ExplorerLocation = {
+      name: result.name,
+      body: 'Earth',
+      latitude: result.lat,
+      longitude: result.lng,
+      description: `${result.country ? `${result.country} · ` : ''}Mentioned in ${result.document_title}`,
+      terrain: 'Unclassified',
+      researchEvidence: {
+        role: 'other',
+        quote: result.quote,
+        documentTitle: result.document_title,
+        page: result.page_number,
+      },
+    }
+    setPlanet(next.body)
+    setLocation(next)
+    navigate(`/explore?lat=${encodeURIComponent(String(result.lat))}&lng=${encodeURIComponent(String(result.lng))}`)
+  }
+
+  function receiveResearchLocations(results: ResearchLocationResult[]) {
+    setResearchLocations(results)
+    const firstResolved = results.find((result) => result.lat != null && result.lng != null)
+    if (firstResolved) selectResearchLocation(firstResolved)
+  }
+
+  function clearResearchLocations() {
+    setResearchLocations([])
   }
 
   return (
@@ -45,20 +79,21 @@ export default function App() {
       sections={sections}
     >
       <Routes>
-        <Route path="/" element={<Overview planet={planet} location={location} onLocationSelect={selectLocation} highContrast={highContrast} />} />
-        <Route path="/explore" element={<Overview planet={planet} location={location} onLocationSelect={selectLocation} highContrast={highContrast} />} />
-        <Route path="/explorer" element={<Overview planet={planet} location={location} onLocationSelect={selectLocation} highContrast={highContrast} />} />
+        <Route path="/" element={<Overview planet={planet} location={location} onLocationSelect={selectLocation} highContrast={highContrast} researchLocations={researchLocations} onResearchLocationSelect={selectResearchLocation} onClearResearchLocations={clearResearchLocations} />} />
+        <Route path="/explore" element={<Overview planet={planet} location={location} onLocationSelect={selectLocation} highContrast={highContrast} researchLocations={researchLocations} onResearchLocationSelect={selectResearchLocation} onClearResearchLocations={clearResearchLocations} />} />
+        <Route path="/explorer" element={<Overview planet={planet} location={location} onLocationSelect={selectLocation} highContrast={highContrast} researchLocations={researchLocations} onResearchLocationSelect={selectResearchLocation} onClearResearchLocations={clearResearchLocations} />} />
         <Route path="/workspace" element={<MissionWorkspace planet={planet} />} />
         <Route path="/digital-twin" element={(
           <Suspense fallback={<section className="workspace-page"><p className="eyebrow"><span className="eyebrow-mark">●</span> INITIALIZING DIGITAL TWIN</p><h1>Loading simulation<span className="title-period">.</span></h1></section>}>
             <DigitalTwinPage planet={planet} onPlanetChange={changePlanet} />
           </Suspense>
         )} />
+        <Route path="/research" element={<ResearchLab onLocationsFound={receiveResearchLocations} locations={researchLocations} onLocationSelect={selectResearchLocation} onClearLocations={clearResearchLocations} />} />
         <Route path="/discovery" element={<WorkspacePage section={{ ...sections[1], path: '/discovery' }} planet={planet} />} />
         <Route path="/comparison" element={<WorkspacePage section={{ ...sections[3], path: '/comparison' }} planet={planet} />} />
         <Route path="/transferability" element={<WorkspacePage section={{ label: 'Transferability', path: '/transferability', eyebrow: 'ANALYZE / ENVIRONMENTAL GAPS', description: 'Compare experiment conditions with explicit environmental limits and evidence status.' }} planet={planet} />} />
         <Route path="/rehearsal" element={<WorkspacePage section={{ label: 'Route rehearsal', path: '/rehearsal', eyebrow: 'MISSION / TERRAIN REHEARSAL', description: 'A bounded terrain and route-planning workspace will be available when verified DEM data is configured.' }} planet={planet} />} />
-        {sections.filter((section) => section.path !== '/explore' && section.path !== '/digital-twin').map((section) => (
+        {sections.filter((section) => section.path !== '/explore' && section.path !== '/digital-twin' && section.path !== '/research').map((section) => (
           <Route key={section.path} path={section.path} element={<WorkspacePage section={section} planet={planet} />} />
         ))}
         <Route path="*" element={<Navigate to="/" replace />} />

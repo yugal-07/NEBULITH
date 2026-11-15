@@ -47,8 +47,18 @@ class ConflictError(AppException):
 
 
 class BadRequestError(AppException):
-    def __init__(self, message: str = "Bad request", details: dict[str, Any] | None = None):
-        super().__init__(message=message, code="bad_request", status_code=400, details=details)
+    def __init__(self, message: str = "Bad request", code: str = "bad_request", details: dict[str, Any] | None = None):
+        super().__init__(message=message, code=code, status_code=400, details=details)
+
+
+class UnsupportedFileTypeError(AppException):
+    def __init__(self, message: str = "Unsupported file type", details: dict[str, Any] | None = None):
+        super().__init__(message=message, code="unsupported_file_type", status_code=400, details=details)
+
+
+class FileTooLargeError(AppException):
+    def __init__(self, message: str = "File exceeds maximum allowed size", details: dict[str, Any] | None = None):
+        super().__init__(message=message, code="file_too_large", status_code=413, details=details)
 
 
 def register_error_handlers(app: FastAPI) -> None:

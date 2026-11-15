@@ -1,5 +1,6 @@
 import pytest
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects import postgresql, sqlite
 from backend.models import (
     Document,
     Chunk,
@@ -9,6 +10,14 @@ from backend.models import (
     Candidate,
     CandidateEvidence,
 )
+from backend.models.base import VectorType
+
+
+def test_vector_type_uses_pgvector_on_postgres_and_json_on_sqlite():
+    vector_type = VectorType(dim=3)
+    assert "VECTOR(3)" in vector_type.compile(dialect=postgresql.dialect()).upper()
+    assert vector_type.process_bind_param([0.12345678, 1, -1], postgresql.dialect()) == [0.123457, 1.0, -1.0]
+    assert vector_type.process_bind_param([0.12345678, 1, -1], sqlite.dialect()) == "[0.123457, 1.0, -1.0]"
 
 
 def test_create_document_and_chunks(db_session: Session):

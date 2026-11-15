@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { GlobeControls } from '../components/globe/GlobeControls'
 import { PlanetaryGlobe, type Basemap, type LocationMetrics } from '../components/globe/PlanetaryGlobe'
@@ -7,12 +7,16 @@ import { StarfieldBackground } from '../components/StarfieldBackground'
 import { formatCoordinate, type ExplorerLocation } from '../data/locations'
 import { BODIES } from '../data/planetaryFeatures'
 import type { Planet } from '../types'
+import { LocationResults, type ResearchLocationResult } from '../components/researchLab/LocationResults'
 
 type Props = {
   planet: Planet
   location: ExplorerLocation
   onLocationSelect: (location: ExplorerLocation) => void
   highContrast: boolean
+  researchLocations: ResearchLocationResult[]
+  onResearchLocationSelect: (location: ResearchLocationResult) => void
+  onClearResearchLocations: () => void
 }
 
 function TerrainSketch() {
@@ -38,13 +42,30 @@ function displayMetric(value: number | null, unit: string, status: LocationMetri
   return value === null ? '—' : `${value.toFixed(1)} ${unit}`
 }
 
-export function Overview({ planet, location, onLocationSelect }: Props) {
+export function Overview({ planet, location, onLocationSelect, researchLocations, onResearchLocationSelect, onClearResearchLocations }: Props) {
   const mapRef = useRef<MapLibreMap | null>(null)
+  const [searchParams] = useSearchParams()
+  const [mapReady, setMapReady] = useState(false)
   const [grid, setGrid] = useState(false)
   const [basemap, setBasemap] = useState<Basemap>('satellite')
   const [bodyTilesLoading, setBodyTilesLoading] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [metrics, setMetrics] = useState<LocationMetrics>({ elevationMeters: null, slopeDegrees: null, terrainClass: null, status: 'loading' })
+  const focusLat = searchParams.get('lat')
+  const focusLng = searchParams.get('lng')
+
+  useEffect(() => {
+    if (!mapReady || focusLat == null || focusLng == null) return
+    const lat = Number(focusLat)
+    const lng = Number(focusLng)
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) return
+    mapRef.current?.flyTo({ center: [lng, lat], zoom: 6, duration: 1100, essential: true })
+  }, [mapReady, focusLat, focusLng])
+
+  function handleMetricsChange(nextMetrics: LocationMetrics) {
+    setMetrics(nextMetrics)
+    setMapReady(true)
+  }
 
   function changeBasemap(next: Basemap) {
     if (planet !== 'Earth' && next === 'street') return
@@ -78,7 +99,7 @@ export function Overview({ planet, location, onLocationSelect }: Props) {
             basemap={basemap}
             grid={grid}
             onLocationSelect={onLocationSelect}
-            onMetricsChange={setMetrics}
+            onMetricsChange={handleMetricsChange}
             onBodyTilesLoading={setBodyTilesLoading}
             mapControlRef={mapRef}
           />
@@ -130,7 +151,11 @@ export function Overview({ planet, location, onLocationSelect }: Props) {
             <div><span>TERRAIN CLASS</span><b>{metrics.terrainClass ?? (metrics.status === 'loading' ? 'Loading…' : location.terrain)}</b></div>
           </div>
           <p className="location-disclaimer">{metricsNote}</p>
+          {location.researchEvidence && <div className="location-research-evidence"><span>SOURCE EVIDENCE</span><blockquote>“{location.researchEvidence.quote}”</blockquote><small>{location.researchEvidence.documentTitle}{location.researchEvidence.page != null ? ` Â· PAGE ${location.researchEvidence.page}` : ''}</small></div>}
         </aside>
+
+        {researchLocations.length > 0 && <div className="overview-research-locations"><LocationResults locations={researchLocations} onSelect={onResearchLocationSelect} onClear={onClearResearchLocations} compact />
+        </div>}
 
         <div className="hero-metadata" aria-hidden="true"><span>INTERACTIVE SURFACE VIEW</span><span>DRAG TO ROTATE <i>·</i> SCROLL TO ZOOM</span></div>
       </section>

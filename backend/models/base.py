@@ -32,12 +32,24 @@ class VectorType(TypeDecorator):
         super().__init__(*args, **kwargs)
         self.dim = dim
 
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            try:
+                from pgvector.sqlalchemy import Vector
+            except ImportError as exc:
+                raise RuntimeError("PostgreSQL vector columns require the pgvector package") from exc
+            return dialect.type_descriptor(Vector(self.dim))
+        return dialect.type_descriptor(Text())
+
     def process_bind_param(self, value: list[float] | None, dialect) -> str | None:
         if value is None:
             return None
         if not isinstance(value, list):
             raise ValueError(f"Expected list of floats for VectorType, got {type(value)}")
-        return json.dumps([round(float(x), 6) for x in value])
+        values = [round(float(x), 6) for x in value]
+        if dialect.name == "postgresql":
+            return values
+        return json.dumps(values)
 
     def process_result_value(self, value: str | None, dialect) -> list[float] | None:
         if value is None:

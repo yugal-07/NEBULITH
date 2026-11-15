@@ -50,6 +50,33 @@ class RagQueryResponse(BaseModel):
     total_chunks_searched: int
 
 
+class RagConfigResponse(BaseModel):
+    active_llm_provider: str
+    is_real_llm_configured: bool
+    embedding_model: str
+    embedding_dimension: int
+    max_top_k: int
+
+
+@router.get("/config", response_model=RagConfigResponse)
+def get_rag_config() -> RagConfigResponse:
+    """
+    Returns active RAG and LLM provider configuration for the frontend UI.
+    Identifies whether a real LLM is configured or running in mock mode.
+    Never exposes API keys.
+    """
+    has_real_key = bool(settings.GEMINI_API_KEY or settings.OPENAI_API_KEY or settings.ANTHROPIC_API_KEY)
+    is_real = has_real_key and settings.LLM_PROVIDER.lower() != "mock"
+
+    return RagConfigResponse(
+        active_llm_provider=settings.LLM_PROVIDER,
+        is_real_llm_configured=is_real,
+        embedding_model=settings.EMBEDDING_MODEL,
+        embedding_dimension=settings.EMBEDDING_DIMENSION,
+        max_top_k=20,
+    )
+
+
 @router.post("/query", response_model=RagQueryResponse)
 def query_rag(payload: RagQueryRequest, db: Session = Depends(get_db)) -> RagQueryResponse:
     """

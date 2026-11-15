@@ -10,7 +10,7 @@ from ...core.logging import logger
 
 @dataclass
 class ParsedSection:
-    title: str | None
+    title: str
     page_number: int
     text: str
     section_type: str = "text"  # "text", "table", "header"
@@ -26,6 +26,71 @@ class ParsedDocument:
 
 DOI_REGEX = re.compile(r"10\.\d{4,9}/[-._;()/:A-Za-z0-9]+", re.IGNORECASE)
 
+COMMON_SCIENTIFIC_HEADINGS = [
+    "abstract",
+    "introduction",
+    "background",
+    "geological setting",
+    "environmental setting",
+    "regional setting",
+    "study area",
+    "data and methods",
+    "materials and methods",
+    "methods",
+    "methodology",
+    "observations",
+    "field observations",
+    "lithology and mineralogy",
+    "mineralogy and geochemistry",
+    "mineralogy",
+    "geochemistry",
+    "results and discussion",
+    "results",
+    "discussion",
+    "conclusions",
+    "conclusion",
+    "summary",
+    "references",
+    "acknowledgments",
+]
+
+
+def detect_section_heading(text: str) -> tuple[str | None, str]:
+    """
+    Detects if the text block or its first line is a scientific section heading.
+    Returns (detected_heading, remaining_text).
+    """
+    first_line = text.split("\n")[0].strip()
+    clean_line = first_line.rstrip(":").strip()
+    lower_line = clean_line.lower()
+
+    # 1. Standalone common headings
+    for h in COMMON_SCIENTIFIC_HEADINGS:
+        if lower_line == h or (lower_line.startswith(h) and len(clean_line) < 50):
+            remaining = "\n".join(text.split("\n")[1:]).strip()
+            return clean_line.title() if clean_line.isupper() else clean_line, remaining
+
+    # 2. Numbered headings (e.g. '1. Introduction', '2. Geological Setting', '3.1 Methods')
+    m_num = re.match(r"^([0-9]+(\.[0-9]+)*\.?\s+[A-Za-z][A-Za-z0-9\s,\-–:]{2,60})$", first_line)
+    if m_num:
+        remaining = "\n".join(text.split("\n")[1:]).strip()
+        return m_num.group(1).strip(), remaining
+
+    # 3. Colon prefix headings on first line (e.g. 'Data and Methods:  The analysis of gullies...')
+    m_col = re.match(
+        r"^(Abstract|Introduction|Data and Methods|Materials and Methods|Methods|Methodology|Results|Discussion|Conclusions?|Observations|Geological Setting|Study Area)\s*:\s*(.*)",
+        first_line,
+        re.IGNORECASE,
+    )
+    if m_col:
+        heading = m_col.group(1).strip()
+        first_line_rest = m_col.group(2).strip()
+        rest_lines = text.split("\n")[1:]
+        remaining_parts = ([first_line_rest] if first_line_rest else []) + rest_lines
+        return heading, "\n".join(remaining_parts).strip()
+
+    return None, text
+
 
 def extract_column_ordered_blocks(page: fitz.Page) -> list[tuple[float, float, float, float, str]]:
     """
@@ -34,7 +99,7 @@ def extract_column_ordered_blocks(page: fitz.Page) -> list[tuple[float, float, f
     """
     raw_blocks = page.get_text("blocks")
     text_blocks = []
-    
+
     for b in raw_blocks:
         # b = (x0, y0, x1, y1, text, block_no, block_type)
         if len(b) >= 7 and b[6] == 0:  # text block
@@ -55,25 +120,21 @@ def extract_column_ordered_blocks(page: fitz.Page) -> list[tuple[float, float, f
 
     # If substantial blocks are on both left and right, order column-wise
     if len(left_blocks) >= 2 and len(right_blocks) >= 2:
-        # Sort full-width header/title blocks at top first
         top_full = sorted([b for b in full_width_blocks if b[1] < page.rect.height * 0.3], key=lambda b: b[1])
         bottom_full = sorted([b for b in full_width_blocks if b[1] >= page.rect.height * 0.3], key=lambda b: b[1])
 
-        # Sort left column top-to-bottom
         sorted_left = sorted(left_blocks, key=lambda b: (round(b[1], 1), b[0]))
-        # Sort right column top-to-bottom
         sorted_right = sorted(right_blocks, key=lambda b: (round(b[1], 1), b[0]))
 
         return top_full + sorted_left + sorted_right + bottom_full
 
-    # Otherwise standard top-to-bottom reading order
     return sorted(text_blocks, key=lambda b: (round(b[1] / 10.0) * 10, b[0]))
 
 
 def parse_pdf(file_path: Path | str) -> ParsedDocument:
     """
     Parses a PDF document with PyMuPDF.
-    Detects scanned PDFs, handles tables, two-column layouts, and extracts metadata.
+    Detects scanned PDFs, handles tables, two-column layouts, real section headings, and metadata.
     """
     file_path = Path(file_path)
     if not file_path.exists():
@@ -93,7 +154,7 @@ def parse_pdf(file_path: Path | str) -> ParsedDocument:
     total_chars = 0
     all_text_blobs = []
 
-    # Metadata extraction from doc properties
+    # Metadata extraction
     doc_meta = doc.metadata or {}
     meta: dict[str, Any] = {
         "title": doc_meta.get("title") or file_path.stem.replace("_", " "),
@@ -103,27 +164,25 @@ def parse_pdf(file_path: Path | str) -> ParsedDocument:
         "total_pages": total_pages,
     }
 
-    # Heading detection pattern
-    heading_pattern = re.compile(r"^([0-9]+\.?\s+[A-Z][A-Za-z0-9\s]{2,40}|[A-Z\s]{4,40})$")
+    current_heading = "Overview"
+    current_paragraphs: list[str] = []
+    current_page = 1
 
     for page_idx in range(total_pages):
         page = doc[page_idx]
         page_num = page_idx + 1
 
         # 1. Extract tables if available
-        tables = []
         try:
             tab_finder = page.find_tables()
             if tab_finder and tab_finder.tables:
-                for tab in tab_finder.tables:
+                for t_idx, tab in enumerate(tab_finder.tables):
                     df = tab.to_pandas()
                     if df is not None and not df.empty:
-                        # Format as markdown table
                         md_table = df.to_markdown(index=False)
-                        tables.append(md_table)
                         sections.append(
                             ParsedSection(
-                                title=f"Table (Page {page_num})",
+                                title=f"Table {t_idx+1}: {current_heading}",
                                 page_number=page_num,
                                 text=md_table,
                                 section_type="table",
@@ -134,44 +193,44 @@ def parse_pdf(file_path: Path | str) -> ParsedDocument:
 
         # 2. Extract column-ordered text blocks
         blocks = extract_column_ordered_blocks(page)
-        current_heading = f"Page {page_num}"
-        current_paragraphs: list[str] = []
 
         for b in blocks:
             text = b[4].strip()
             total_chars += len(text)
             all_text_blobs.append(text)
 
-            # Detect section heading
-            first_line = text.split("\n")[0].strip()
-            if heading_pattern.match(first_line) and len(first_line) < 60:
-                # Flush previous paragraph
+            detected_heading, remaining_text = detect_section_heading(text)
+            if detected_heading:
+                # Flush existing content under previous heading
                 if current_paragraphs:
                     sections.append(
                         ParsedSection(
                             title=current_heading,
-                            page_number=page_num,
+                            page_number=current_page,
                             text="\n\n".join(current_paragraphs),
                             section_type="text",
                         )
                     )
                     current_paragraphs = []
-                current_heading = first_line
-                remaining = "\n".join(text.split("\n")[1:]).strip()
-                if remaining:
-                    current_paragraphs.append(remaining)
+
+                current_heading = detected_heading
+                current_page = page_num
+                if remaining_text:
+                    current_paragraphs.append(remaining_text)
             else:
                 current_paragraphs.append(text)
+                current_page = page_num
 
-        if current_paragraphs:
-            sections.append(
-                ParsedSection(
-                    title=current_heading,
-                    page_number=page_num,
-                    text="\n\n".join(current_paragraphs),
-                    section_type="text",
-                )
+    # Flush final accumulated paragraphs
+    if current_paragraphs:
+        sections.append(
+            ParsedSection(
+                title=current_heading,
+                page_number=current_page,
+                text="\n\n".join(current_paragraphs),
+                section_type="text",
             )
+        )
 
     doc.close()
 
@@ -181,12 +240,14 @@ def parse_pdf(file_path: Path | str) -> ParsedDocument:
     if doi_match:
         meta["doi"] = doi_match.group(0)
 
-    # Scanned PDF check: if less than 50 chars per page on average, mark as needs_ocr
+    # Scanned PDF check
     avg_chars_per_page = total_chars / max(total_pages, 1)
     needs_ocr = avg_chars_per_page < 40 or total_chars < 50
 
     if needs_ocr:
-        logger.warning(f"PDF {file_path.name} has insufficient text layer ({total_chars} chars across {total_pages} pages). Marked needs_ocr.")
+        logger.warning(
+            f"PDF {file_path.name} has insufficient text layer ({total_chars} chars across {total_pages} pages). Marked needs_ocr."
+        )
 
     return ParsedDocument(
         sections=sections,

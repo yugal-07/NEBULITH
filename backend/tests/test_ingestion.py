@@ -247,7 +247,8 @@ def test_documents_api_upload_and_status(client: TestClient):
     assert response.status_code == 202
     data = response.json()
     assert len(data["documents"]) == 1
-    doc_id = data["documents"][0]["document_id"]
+    doc_id = data["documents"][0]["id"]
+    assert "document_id" not in data["documents"][0]
     assert data["documents"][0]["status"] == "queued"
 
     # Query status endpoint
@@ -261,6 +262,10 @@ def test_documents_api_upload_and_status(client: TestClient):
     list_res = client.get("/api/v1/documents")
     assert list_res.status_code == 200
     assert any(d["id"] == doc_id for d in list_res.json())
+    detail = client.get(f"/api/v1/documents/{doc_id}").json()
+    stored_path = Path(detail["file_path"])
+    assert stored_path.name == f"{doc_id}.csv"
+    assert settings.UPLOAD_DIR in stored_path.parents
 
     # Delete
     del_res = client.delete(f"/api/v1/documents/{doc_id}")

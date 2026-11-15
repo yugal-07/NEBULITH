@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 from ..core.logging import logger
 from ..core.providers.llm import get_llm_provider
+from ..core.text_utils import verify_quote_in_text, normalize_scientific_text
 from .retrieval import RetrievedChunk
 
 CITATION_REGEX = re.compile(
@@ -33,26 +34,12 @@ class Citation:
         }
 
 
-def normalize_whitespace(text: str) -> str:
-    """Normalize whitespace and newlines for fuzzy substring matching."""
-    return re.sub(r"\s+", " ", text).strip().lower()
-
-
 def verify_quote_in_chunk(quote: str, chunk_text: str) -> bool:
     """
     Verifies that the cited quote literally appears in the source chunk text.
-    Resistant to line breaks and multiple spaces.
+    Resistant to line breaks, ligatures, hyphenation across lines, and unicode.
     """
-    norm_quote = normalize_whitespace(quote)
-    norm_chunk = normalize_whitespace(chunk_text)
-    
-    # Strip common enclosing quotes
-    norm_quote = norm_quote.strip("\"'“”)].")
-    
-    if len(norm_quote) < 3:
-        return False
-        
-    return norm_quote in norm_chunk
+    return verify_quote_in_text(quote, chunk_text)
 
 
 RAG_SYSTEM_PROMPT = """You are NEBULITH, an AI-powered planetary research and Earth-analog discovery assistant.

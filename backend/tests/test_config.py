@@ -1,4 +1,5 @@
 from backend.core.config import Settings
+from backend.core.config import settings
 from backend.core.interfaces import LLMProvider, EmbeddingProvider
 from backend.core.providers.embedding import (
     get_embedding_provider,
@@ -8,7 +9,8 @@ from backend.core.providers.embedding import (
 from backend.core.providers.llm import get_llm_provider, MockLLMProvider
 
 
-def test_default_config():
+def test_default_config(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "local")
     s = Settings()
     assert s.PROJECT_NAME == "NEBULITH"
     assert s.MAX_UPLOAD_SIZE_MB == 50
@@ -21,8 +23,14 @@ def test_default_config():
     assert s.EMBEDDING_DIMENSION == 384
 
 
-def test_embedding_provider_interface():
-    # Test active provider (Local bge-small-en-v1.5)
+def test_embedding_provider_interface(monkeypatch):
+    # Exercise provider selection and vector interface without downloading a model.
+    class FakeFastEmbedModel:
+        def embed(self, texts):
+            return ([0.25] * 384 for _ in texts)
+
+    monkeypatch.setattr(settings, "EMBEDDING_PROVIDER", "local")
+    monkeypatch.setattr(LocalEmbeddingProvider, "_model", FakeFastEmbedModel())
     provider = get_embedding_provider()
     assert isinstance(provider, EmbeddingProvider)
     assert isinstance(provider, LocalEmbeddingProvider)

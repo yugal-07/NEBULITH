@@ -6,7 +6,7 @@ import sqlite3
 import asyncio
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -177,10 +177,17 @@ def as_study(row: sqlite3.Row) -> Study:
     return Study.model_validate_json(row["payload"])
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="NEBULITH API",
     version=APP_VERSION,
     description="Local-first planetary research workspace. Missing evidence remains null; outputs are not safety certifications.",
+    lifespan=lifespan,
 )
 geocode_cache: dict[str, list[dict[str, Any]]] = {}
 geocode_lock = asyncio.Lock()
@@ -192,11 +199,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
-
-
-@app.on_event("startup")
-def startup() -> None:
-    init_db()
 
 
 @app.middleware("http")
