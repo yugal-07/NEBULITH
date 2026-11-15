@@ -7,6 +7,10 @@ An interactive planetary explorer for Earth, the Moon and Mars, slowly turning i
 ![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
 
+## Live App
+
+**[Launch NEBULITH](https://nebulith.netlify.app/)**
+
 ## Frontend Preview
 
 ### Interactive Planetary Explorer
