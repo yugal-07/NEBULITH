@@ -1,11 +1,43 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, NavLink } from 'react-router-dom'
-import { CircleUserRound, Search, Sun, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { CircleUserRound, Mic, Search, Sun, X } from 'lucide-react'
 import type { ExplorerLocation } from '../../data/locations'
 import { planetaryFeatures } from '../../data/planetaryFeatures'
 import type { Planet, Section } from '../../types'
+import { useSpeechRecognition } from '../../hooks/useSpeechRecognition'
 
 type GeocodeResult = { name: string; latitude: number; longitude: number }
+
+function normalizeVoiceText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function editDistance(left: string, right: string) {
+  const row = Array.from({ length: right.length + 1 }, (_, index) => index)
+  for (let i = 1; i <= left.length; i += 1) {
+    let diagonal = row[0]
+    row[0] = i
+    for (let j = 1; j <= right.length; j += 1) {
+      const above = row[j]
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, diagonal + (left[i - 1] === right[j - 1] ? 0 : 1))
+      diagonal = above
+    }
+  }
+  return row[right.length]
+}
+
+function closestName(input: string, names: string[]) {
+  const exact = names.find((name) => normalizeVoiceText(name) === input)
+  if (exact) return exact
+  const ranked = names.map((name) => {
+    const candidate = normalizeVoiceText(name)
+    const distance = editDistance(input, candidate)
+    return { name, distance, length: Math.max(input.length, candidate.length) }
+  }).filter((match) => match.distance <= Math.max(1, Math.floor(match.length * 0.18)))
+    .sort((a, b) => a.distance - b.distance)
+  if (!ranked.length || (ranked.length > 1 && ranked[0].distance === ranked[1].distance)) return undefined
+  return ranked[0].name
+}
 
 type Props = {
   planet: Planet
@@ -19,17 +51,62 @@ type Props = {
 }
 
 export function AppShell({ planet, onPlanetChange, onLocationSelect, locationOptions, highContrast, onDisplayToggle, sections, children }: Props) {
+  const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [searchBusy, setSearchBusy] = useState(false)
   const [searchError, setSearchError] = useState('')
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResult[]>([])
+  const [commandResult, setCommandResult] = useState('')
   const normalizedQuery = query.trim().toLowerCase()
   const localResults = useMemo(() => {
     if (!normalizedQuery || normalizedQuery.includes(',')) return []
     const candidates = planet === 'Earth' ? locationOptions : planetaryFeatures(planet)
     return candidates.filter((location) => location.name.toLowerCase().includes(normalizedQuery)).slice(0, 4)
   }, [locationOptions, normalizedQuery, planet])
+
+  const runVoiceCommand = useCallback((spoken: string) => {
+    const command = normalizeVoiceText(spoken).replace(/^(please |can you |could you )/, '').replace(/^(open|go to|show|switch to|select|find|navigate to) /, '').replace(/^the /, '')
+    const planetAlias: Record<string, Planet> = { earth: 'Earth', moon: 'Moon', mars: 'Mars' }
+    const matchedPlanet = closestName(command.replace(/ planet$/, ''), Object.keys(planetAlias))
+    if (matchedPlanet) {
+      const selected = planetAlias[matchedPlanet]
+      onPlanetChange(selected)
+      setCommandResult(`Showing ${selected}.`)
+      return
+    }
+    const routeNames: Record<string, { path: string; aliases: string[] }> = {
+      explore: { path: '/explore', aliases: ['explore', 'explorer', 'planetary explorer'] },
+      discover: { path: '/discover', aliases: ['discover', 'discovery'] },
+      research: { path: '/research', aliases: ['research', 'research lab'] },
+      compare: { path: '/compare', aliases: ['compare', 'comparison'] },
+      analyze: { path: '/analyze', aliases: ['analyze', 'analysis'] },
+      reports: { path: '/reports', aliases: ['reports', 'report'] },
+      workspace: { path: '/workspace', aliases: ['workspace', 'work space'] },
+    }
+    const route = Object.entries(routeNames).find(([, value]) => value.aliases.includes(command))
+      ?? Object.entries(routeNames).find(([, value]) => value.aliases.some((alias) => closestName(command, [alias]) === alias))
+    if (route) {
+      navigate(route[1].path)
+      setCommandResult(`Opened ${route[0]}.`)
+      return
+    }
+    const candidates = planet === 'Earth' ? locationOptions : planetaryFeatures(planet)
+    const matchName = closestName(command, candidates.map((item) => normalizeVoiceText(item.name)))
+    const location = candidates.find((item) => normalizeVoiceText(item.name) === matchName)
+    if (location) {
+      onLocationSelect(location)
+      setCommandResult(`Selected ${location.name}.`)
+      return
+    }
+    setCommandResult('I could not match that command. Try “open explorer”, “show the moon”, or “find Olympus Mons”.')
+  }, [locationOptions, navigate, onLocationSelect, onPlanetChange, planet])
+  const voice = useSpeechRecognition(runVoiceCommand)
+
+  function activateVoice() {
+    setCommandResult('')
+    voice.start()
+  }
 
   useEffect(() => {
     setGeocodeResults([])
@@ -130,6 +207,20 @@ export function AppShell({ planet, onPlanetChange, onLocationSelect, locationOpt
           </nav>
 
           <div className="toolbar-utilities">
+            <div className="voice-control">
+              <button className={`utility-button voice-button${voice.status === 'listening' ? ' selected listening' : ''}`} type="button" aria-label={voice.status === 'listening' ? 'Stop voice recognition' : 'Start voice recognition'} aria-pressed={voice.status === 'listening'} onClick={activateVoice}><Mic /></button>
+              {voice.status !== 'idle' && (
+                <div className="voice-panel" role="status" aria-live="polite">
+                  <div className="voice-panel-heading"><strong>VOICE INPUT</strong><button type="button" aria-label="Dismiss voice status" onClick={() => { voice.stop(); setCommandResult('') }}><X /></button></div>
+                  <p>{voice.status === 'requesting' ? 'Waiting for microphone permission…' : voice.status === 'listening' ? 'Listening. Speak a short command.' : voice.status === 'success' ? 'Recognition complete.' : voice.error}</p>
+                  {voice.transcript && <p className="voice-transcript"><span>HEARD</span> “{voice.transcript}”</p>}
+                  {commandResult && <p className="voice-command-result">{commandResult}</p>}
+                  {voice.interimTranscript && <p className="voice-interim">{voice.interimTranscript}</p>}
+                  {voice.status !== 'listening' && <button type="button" className="voice-retry" onClick={activateVoice}>Try voice again</button>}
+                  <small>One-time English recognition. Audio and transcripts are not saved.</small>
+                </div>
+              )}
+            </div>
             <div className={`search-control${searchOpen ? ' search-open' : ''}`}>
               {searchOpen && (
                 <form className="search-form" onSubmit={(event) => { event.preventDefault(); void submitSearch() }}>

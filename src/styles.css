@@ -74,6 +74,20 @@ button:disabled { cursor: not-allowed; }
 .search-results small { display: block; margin-top: 4px; color: #9296a5; font-size: 9px; }
 .search-results b { color: #9da0af; font: 8px var(--pixel); }
 .search-results p { padding: 10px; color: var(--muted); font-size: 11px; }
+.voice-control { position: relative; display: flex; align-items: center; }
+.voice-button.listening { color: #fff; border-color: rgb(255 112 112 / 55%); background: rgb(190 53 53 / 24%); animation: voice-pulse 1.3s ease-in-out infinite; }
+.voice-panel { position: absolute; z-index: 35; top: calc(100% + 12px); right: -40px; width: min(330px, calc(100vw - 30px)); padding: 14px; border: 1px solid var(--hairline); border-radius: 13px; color: #e8e9f2; background: rgb(17 20 29 / 97%); backdrop-filter: blur(20px); box-shadow: 0 16px 45px rgb(0 0 0 / 36%); }
+.voice-panel-heading { display: flex; align-items: center; justify-content: space-between; color: #b7b9c8; font: 8px var(--pixel); letter-spacing: .08em; }
+.voice-panel-heading button { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; color: #b7b9c8; background: transparent; cursor: pointer; }
+.voice-panel-heading svg { width: 14px; height: 14px; }
+.voice-panel p { margin: 9px 0; color: #d2d4df; font-size: 11px; line-height: 1.5; }
+.voice-panel .voice-transcript { color: #fff; }
+.voice-transcript span { margin-right: 5px; color: var(--periwinkle); font: 8px var(--pixel); }
+.voice-panel .voice-interim { color: #9296a5; font-style: italic; }
+.voice-panel .voice-command-result { color: #b9bbff; }
+.voice-panel small { display: block; margin-top: 10px; color: #858999; font-size: 9px; line-height: 1.45; }
+.voice-retry { padding: 0; border: 0; color: #d6d7ff; background: transparent; cursor: pointer; font-size: 10px; text-decoration: underline; text-underline-offset: 3px; }
+@keyframes voice-pulse { 50% { box-shadow: 0 0 0 4px rgb(190 53 53 / 14%); } }
 
 .main-content { position: relative; flex: 1; display: flex; flex-direction: column; }
 .overview { position: relative; isolation: isolate; width: min(100%, 1720px); min-height: calc(100svh - 38px); margin: 0 auto; padding: 110px clamp(32px, 6vw, 98px) 70px; display: flex; align-items: center; overflow: hidden; }
