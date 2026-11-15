@@ -202,7 +202,7 @@ Planetary research is a field where a confident-looking answer can be worse than
 - **Keep the source attached.** A measurement should trace back to its dataset, date, resolution, units and processing where that's known.
 - **Compare fairly.** Similar names aren't enough. Units, scale, context and method have to line up.
 - **Explanation is not calculation.** An AI-written summary can help, but it can't stand in for a reproducible method.
-- **Know what a simulation proves.** A route on screen is a way to explore an idea, not evidence that a rover can drive it safely.
+- **Know what a simulation proves.** A route on screen is a way to explore an idea, not evidence that a rover can drive it safely..
 
 NEBULITH is an independent project and isn't affiliated with or endorsed by NASA.
 
