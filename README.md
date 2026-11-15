@@ -213,11 +213,3 @@ NEBULITH is an independent project and isn't affiliated with or endorsed by NASA
 7. Add references, reproducible reports and exports.
 
 Order matters here. A similarity score is pointless before the measurements behind it can be trusted, and a terrain simulator built on invented terrain is worse than none.
-
-## More docs
-
-- [`DESIGN.md`](./DESIGN.md): visual direction and interface decisions
-- [`NEBULITH-FEATURE-MAPPING.md`](./NEBULITH-FEATURE-MAPPING.md): what exists, what's mapped out, what still needs work
-- [`NEBULITH-INTEGRATION-PLAN.md`](./NEBULITH-INTEGRATION-PLAN.md): implementation phases and status
-- [`planning/terracroma-prototype/`](./planning/terracroma-prototype/): the original planning and spec package
-
