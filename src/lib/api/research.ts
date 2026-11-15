@@ -154,7 +154,7 @@ export type DocumentLocationsResponse = {
 export type ApiError = Error & { status?: number; details?: unknown }
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
-const DEFAULT_TIMEOUT_MS = 20_000
+const DEFAULT_TIMEOUT_MS = 65_000
 
 function errorFromPayload(payload: unknown, status: number): ApiError {
   const body = payload as { detail?: unknown; error?: { message?: string }; message?: string } | null
