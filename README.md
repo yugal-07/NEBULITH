@@ -215,5 +215,6 @@ NEBULITH is an independent project and isn't affiliated with or endorsed by NASA
 5. Add explainable comparisons and environmental gaps.
 6. Bring in a real elevation dataset for a limited terrain and route experiment.
 7. Add references, reproducible reports and exports.
+8. Working more on this project.
 
 Order matters here. A similarity score is pointless before the measurements behind it can be trusted, and a terrain simulator built on invented terrain is worse than none.
