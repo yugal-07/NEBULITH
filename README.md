@@ -206,7 +206,7 @@ Planetary research is a field where a confident-looking answer can be worse than
 
 NEBULITH is an independent project and isn't affiliated with or endorsed by NASA.
 
-## What's next
+## What's next...
 
 1. Finish the shared interface and make the workspace and explorer flows hang together.
 2. Build the area-of-interest workflow and hook up a real 2D map.
